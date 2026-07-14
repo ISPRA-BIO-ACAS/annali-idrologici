@@ -1,0 +1,45 @@
+{
+  "title": "Italian Hydrological Annals",
+  "description": "Digitalized and quality-controlled database of the Italian Hydrological Annals together with the Docker configuration required for publication through HydroServer.",
+  "creators": [
+    {
+      "name": "Bussettini, Martina",
+      "affiliation": "Istituto Superiore per la Protezione e la Ricerca Ambientale (ISPRA)"
+    },
+        {
+      "name": "Lastoria, Barbara",
+      "affiliation": "Istituto Superiore per la Protezione e la Ricerca Ambientale (ISPRA)"
+    },
+        {
+      "name": "Mariani, Stefano",
+      "affiliation": "Istituto Superiore per la Protezione e la Ricerca Ambientale (ISPRA)"
+    },
+        {
+      "name": "Casaioli, Marco",
+      "affiliation": "Istituto Superiore per la Protezione e la Ricerca Ambientale (ISPRA)"
+    },
+    {
+      "name": "Boldrini, Enrico",
+      "affiliation": "Institute of Technologies and Environmental Intelligence, National Research Council of Italy (CNR-ITIAm)",
+      "orcid": "0000-0003-2075-4742"
+    }
+  ],
+  "keywords": [
+    "hydrology",
+    "hydrological annals",
+    "Italy",
+    "HydroServer",
+    "time series",
+    "water",
+    "FAIR",
+    "digitization"
+  ],
+  "license": "cc-by-4.0",
+  "upload_type": "dataset",
+  "language": "eng",
+  "communities": [
+    {
+      "identifier": "ispra-bio-acas"
+    }
+  ]
+}

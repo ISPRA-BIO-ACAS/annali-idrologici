@@ -1,0 +1,49 @@
+cff-version: 1.2.0
+title: "Italian Hydrological Annals Interoperable Dataset"
+message: >
+  If you use this dataset, please cite it using the metadata below.
+type: dataset
+
+authors:
+  - name: "ISPRA BIO-ACAS"
+
+contributors:
+  - family-names: Bussettini
+    given-names: Martina
+    affiliation: ISPRA BIO-ACAS
+
+  - family-names: Lastoria
+    given-names: Barbara
+    affiliation: ISPRA BIO-ACAS
+
+  - family-names: Mariani
+    given-names: Stefano
+    affiliation: ISPRA BIO-ACAS
+
+  - family-names: Casaioli
+    given-names: Marco
+    affiliation: ISPRA BIO-ACAS
+
+  - family-names: Boldrini
+    given-names: Enrico
+    affiliation: CNR-ITIAm
+    orcid: https://orcid.org/0000-0003-2075-4742
+
+license: CC-BY-4.0
+
+repository-code: https://github.com/ISPRA-BIO-ACAS/annali-idrologici
+
+url: https://github.com/ISPRA-BIO-ACAS/annali-idrologici
+
+abstract: >
+  Digital database of the Italian Hydrological Annals obtained by
+  digitizing the original printed volumes, performing quality control,
+  and publishing the resulting database through HydroServer.
+
+keywords:
+  - hydrology
+  - Italy
+  - Hydrological Annals
+  - HydroServer
+  - time series
+  - digitization
