@@ -1,6 +1,6 @@
 {
-  "title": "Italian Hydrological Annals",
-  "description": "Digitalized and quality-controlled database of the Italian Hydrological Annals together with the Docker configuration required for publication through HydroServer.",
+  "title": "Italian Hydrological Annals Interoperable Dataset",
+  "description": "Digitalized and quality-controlled database of the Italian Hydrological Annals together with the Docker configuration required for publication according to OGC SensorThings API (STA) through HydroServer and FROST.",
   "creators": [
     {
       "name": "Bussettini, Martina",
