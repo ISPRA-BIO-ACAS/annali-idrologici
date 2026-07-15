@@ -12,20 +12,20 @@ authors:
   - name: "ISPRA BIO-ACAS"
 
 contributors:
-  - family-names: Bussettini
-    given-names: Martina
-    affiliation: ISPRA BIO-ACAS
-
   - family-names: Lastoria
     given-names: Barbara
+    affiliation: ISPRA BIO-ACAS
+
+  - family-names: Casaioli
+    given-names: Marco
     affiliation: ISPRA BIO-ACAS
 
   - family-names: Mariani
     given-names: Stefano
     affiliation: ISPRA BIO-ACAS
 
-  - family-names: Casaioli
-    given-names: Marco
+  - family-names: Bussettini
+    given-names: Martina
     affiliation: ISPRA BIO-ACAS
 
   - family-names: Boldrini

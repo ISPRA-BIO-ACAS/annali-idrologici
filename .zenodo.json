@@ -3,19 +3,19 @@
   "description": "Digitalized and quality-controlled database of the Italian Hydrological Annals together with the Docker configuration required for publication according to OGC SensorThings API (STA) through HydroServer and FROST.",
   "creators": [
     {
-      "name": "Bussettini, Martina",
-      "affiliation": "Istituto Superiore per la Protezione e la Ricerca Ambientale (ISPRA)"
-    },
-        {
       "name": "Lastoria, Barbara",
       "affiliation": "Istituto Superiore per la Protezione e la Ricerca Ambientale (ISPRA)"
     },
-        {
+    {
+      "name": "Casaioli, Marco",
+      "affiliation": "Istituto Superiore per la Protezione e la Ricerca Ambientale (ISPRA)"
+    },
+    {
       "name": "Mariani, Stefano",
       "affiliation": "Istituto Superiore per la Protezione e la Ricerca Ambientale (ISPRA)"
     },
-        {
-      "name": "Casaioli, Marco",
+    {
+      "name": "Bussettini, Martina",
       "affiliation": "Istituto Superiore per la Protezione e la Ricerca Ambientale (ISPRA)"
     },
     {
