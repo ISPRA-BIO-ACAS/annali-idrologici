@@ -1,0 +1,62 @@
+# FROST Server + PostGIS for Annals (ISPRA) data publication.
+#
+# Start this stack first and keep it running:
+#   docker compose -f docker-compose-frost.yml up -d
+#
+# Reset the database:
+#   docker compose -f docker-compose-frost.yml down -v
+#
+# Override ANNALS_DATA_BASE_URL for the public FROST service root URL.
+services:
+  frost-server:
+    image: fraunhoferiosb/frost-server:2.6
+    container_name: frost-server
+    environment:
+      - serviceRootUrl=${ANNALS_DATA_BASE_URL:-http://localhost:8082}/FROST-Server
+      - plugins_multiDatastream.enable=false
+      - http_cors_enable=true
+      - http_cors_allowed_origins=*
+      - persistence_db_driver=org.postgresql.Driver
+      - persistence_db_url=jdbc:postgresql://database:5432/sensorthings
+      - persistence_db_username=sensorthings
+      - persistence_db_password=ChangeMe
+      - persistence_autoUpdateDatabase=true
+      - persistence.idGenerationMode=ServerAndClientGenerated
+    ports:
+      - 8082:8080
+      - 8885:1883
+    restart: "no"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/FROST-Server/v1.1/"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    depends_on:
+      database:
+        condition: service_healthy
+    networks:
+      - annals-frost-net
+
+  database:
+    image: postgis/postgis:16-3.4-alpine
+    environment:
+      - POSTGRES_DB=sensorthings
+      - POSTGRES_USER=sensorthings
+      - POSTGRES_PASSWORD=ChangeMe
+    volumes:
+      - annals-postgis-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -d sensorthings -U sensorthings "]
+      interval: 2s
+      timeout: 2s
+      retries: 10
+    restart: "no"
+    networks:
+      - annals-frost-net
+
+networks:
+  annals-frost-net:
+    name: annals-frost-net
+
+volumes:
+  annals-postgis-data:

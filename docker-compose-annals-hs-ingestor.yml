@@ -1,0 +1,33 @@
+# Annals HydroServer ingestor: load prepared CSV data into HydroServer.
+#
+# Prerequisite: prepared data under ./data/processed/:
+#   docker compose -f docker-compose-annals-prepare.yml up --build
+#
+# Prerequisite: HydroServer stack running on network annals-hydroserver-net:
+#   docker compose -f docker-compose-hydroserver.yml up -d
+#
+# Run the ingestor:
+#   docker compose -f docker-compose-annals-hs-ingestor.yml up --build
+services:
+  annals-hs-ingestor:
+    build:
+      context: ./ingestor-hydroserver
+      dockerfile: Dockerfile
+    environment:
+      - HYDROSERVER_URL=${HYDROSERVER_URL:-http://hydroserver-web:8000}
+      # Admin credentials created by hydroserver-init (setup_admin_user)
+      - HYDROSERVER_EMAIL=${HYDROSERVER_EMAIL:-enrico.boldrini@cnr.it}
+      - HYDROSERVER_PASSWORD=${HYDROSERVER_PASSWORD:-changeme123!}
+      # Root data folder: metadata CSVs at /data, regional CSVs under /data/processed/
+      - HS_DATA_DIR=${HS_DATA_DIR:-/data}
+      - HS_WORKSPACE_NAME=${HS_WORKSPACE_NAME:-Annali}
+      - HS_FAST=${HS_FAST:-false}
+    volumes:
+      - ./data:/data
+    networks:
+      - annals-hydroserver-net
+    restart: "no"
+
+networks:
+  annals-hydroserver-net:
+    external: true

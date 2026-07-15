@@ -1,0 +1,91 @@
+package eu.flora.essi.ingestor.sta;
+
+/**
+ * Generates deterministic IDs for SensorThings API entities.
+ * IDs are based on stable string keys and produce positive Long values.
+ * Different entity types use different offset ranges to avoid collisions.
+ */
+public final class DeterministicIdGenerator {
+
+    // Offset ranges for different entity types to avoid ID collisions
+    private static final long THING_OFFSET = 1_000_000_000L;
+    private static final long LOCATION_OFFSET = 2_000_000_000L;
+    private static final long DATASTREAM_OFFSET = 3_000_000_000L;
+    private static final long SENSOR_OFFSET = 4_000_000_000L;
+    private static final long OBSERVED_PROPERTY_OFFSET = 5_000_000_000L;
+    private static final long OBSERVATION_OFFSET = 6_000_000_000L;
+
+    private DeterministicIdGenerator() {
+        // Utility class
+    }
+
+    /**
+     * Generate a deterministic ID for a Thing based on siteId.
+     */
+    public static Long thingId(String siteId) {
+        return generateId(siteId, THING_OFFSET);
+    }
+
+    /**
+     * Generate a deterministic ID for a Location based on siteId.
+     */
+    public static Long locationId(String siteId) {
+        return generateId(siteId, LOCATION_OFFSET);
+    }
+
+    /**
+     * Generate a deterministic ID for a Datastream based on datastreamIdProp.
+     * @param datastreamIdProp typically "siteId|propertyCode|interpolationType|aggregationPeriod"
+     */
+    public static Long datastreamId(String datastreamIdProp) {
+        return generateId(datastreamIdProp, DATASTREAM_OFFSET);
+    }
+
+    /**
+     * Generate a deterministic ID for a Sensor based on sensor identifier.
+     */
+    public static Long sensorId(String sensorKey) {
+        return generateId(sensorKey, SENSOR_OFFSET);
+    }
+
+    /**
+     * Generate a deterministic ID for an ObservedProperty based on property code/URI.
+     */
+    public static Long observedPropertyId(String propertyKey) {
+        return generateId(propertyKey, OBSERVED_PROPERTY_OFFSET);
+    }
+
+    /**
+     * Generate a deterministic ID for an Observation based on datastreamIdProp + phenomenonTime.
+     */
+    public static Long observationId(String datastreamIdProp, String phenomenonTime) {
+        String key = datastreamIdProp + "_" + (phenomenonTime != null ? phenomenonTime : "");
+        return generateId(key, OBSERVATION_OFFSET);
+    }
+
+    /**
+     * Core ID generation: produces a positive Long from a string key.
+     */
+    private static Long generateId(String key, long offset) {
+        if (key == null) {
+            key = "";
+        }
+        // Use a better hash than String.hashCode() for more uniform distribution
+        long hash = betterHash(key);
+        // Make it positive and add offset
+        return Math.abs(hash % 1_000_000_000L) + offset;
+    }
+
+    /**
+     * A better hash function than String.hashCode() for more uniform distribution.
+     * Based on FNV-1a hash algorithm.
+     */
+    private static long betterHash(String s) {
+        long hash = 0xcbf29ce484222325L; // FNV offset basis
+        for (int i = 0; i < s.length(); i++) {
+            hash ^= s.charAt(i);
+            hash *= 0x100000001b3L; // FNV prime
+        }
+        return hash;
+    }
+}

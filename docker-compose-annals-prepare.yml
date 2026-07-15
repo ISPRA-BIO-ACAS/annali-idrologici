@@ -1,0 +1,23 @@
+# Annals data preparation: extract ZIPs, sort OSSERVAZIONI CSVs, map to STA.
+#
+# Writes outputs under ./data/processed/ (CSVs) and ./data/processed/sta/ (mapped STA JSON).
+# Shared by both FROST and HydroServer ingestors; no target server required.
+#
+# Run once before ingestion (or again after raw data changes):
+#   docker compose -f docker-compose-annals-prepare.yml up --build
+services:
+  annals-prepare:
+    build:
+      context: ./ingestor-frost
+      dockerfile: Dockerfile
+    entrypoint: ["java", "-cp", "/app/ingestor-1.0-SNAPSHOT.jar:/app/dependency/*", "eu.flora.essi.ingestor.annals.AnnalsPrepareAndMap"]
+    environment:
+      - ANNALS_DATA_FOLDER=${ANNALS_DATA_FOLDER:-/data}
+      - ANNALS_LOCAL_FOLDER=${ANNALS_LOCAL_FOLDER:-/data/processed}
+      - ANNALS_PREPARE=${ANNALS_PREPARE:-true}
+      - ANNALS_PREPARE_FORCE=${ANNALS_PREPARE_FORCE:-false}
+      - ANNALS_MAP=${ANNALS_MAP:-true}
+      - ANNALS_FAST=${ANNALS_FAST:-false}
+    volumes:
+      - ./data:/data
+    restart: "no"

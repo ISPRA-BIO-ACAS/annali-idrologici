@@ -1,0 +1,5 @@
+hydroserverpy>=1.2
+pandas
+pytz
+requests
+numpy

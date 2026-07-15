@@ -1,0 +1,93 @@
+# HydroServer stack for Annals (ISPRA) data publication.
+#
+# Start this stack first and keep it running:
+#   docker compose -f docker-compose-hydroserver.yml up -d
+#
+# Reset the database:
+#   docker compose -f docker-compose-hydroserver.yml down -v
+#
+# Override HS_PUBLIC_URL for the public HydroServer base URL.
+services:
+  smtp:
+    image: namshi/smtp
+    ports:
+      - "1025:25"
+    restart: "no"
+    networks:
+      - annals-hydroserver-net
+
+  hydroserver-base: &hydroserver_base
+    image: ghcr.io/hydroserver2/hydroserver-api-services:v1.5.4
+    environment:
+      PROXY_BASE_URL: ${HS_PUBLIC_URL:-http://localhost:8000}
+      SECRET_KEY: ${HS_SECRET_KEY:-changeme}
+      DATABASE_URL: postgres://hydroserver:${HS_DB_PASSWORD:-changeme}@hydroserver-database:5432/hydroserver
+      # Include 127.0.0.1 and service name so healthcheck (127.0.0.1) and internal calls (hydroserver-web) are accepted by Django
+      ALLOWED_HOSTS: "${HS_ALLOWED_HOSTS:-localhost,127.0.0.1,hydroserver-web}"
+      SMTP_URL: "smtp://smtp:25"
+      DEFAULT_FROM_EMAIL: "${HS_DEFAULT_FROM_EMAIL:-webmaster@localhost}"
+    depends_on:
+      - smtp
+    volumes:
+      - static:/app/static
+      - media:/app/media
+    networks:
+      - annals-hydroserver-net
+
+  hydroserver-web:
+    <<: *hydroserver_base
+    container_name: hydroserver-web
+    restart: "no"
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/')\" || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    depends_on:
+      hydroserver-database:
+        condition: service_healthy
+      hydroserver-init:
+        condition: service_completed_successfully
+    command: >
+      sh -c "gunicorn --bind 0.0.0.0:8000 --workers 3 hydroserver.wsgi:application"
+
+  hydroserver-init:
+    <<: *hydroserver_base
+    depends_on:
+      hydroserver-database:
+        condition: service_healthy
+    command: >
+      sh -c "python manage.py migrate &&
+             python manage.py setup_admin_user &&
+             python manage.py load_default_data &&
+             python manage.py collectstatic --noinput"
+    restart: "no"
+
+  hydroserver-database:
+    image: postgres:17
+    restart: "no"
+    environment:
+      POSTGRES_DB: hydroserver
+      POSTGRES_USER: hydroserver
+      POSTGRES_PASSWORD: ${HS_DB_PASSWORD:-changeme}
+    volumes:
+      - annals-hydroserver-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hydroserver"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - annals-hydroserver-net
+
+networks:
+  annals-hydroserver-net:
+    name: annals-hydroserver-net
+
+volumes:
+  annals-hydroserver-db:
+  static:
+  media:
