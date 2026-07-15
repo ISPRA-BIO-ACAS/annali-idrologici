@@ -1,0 +1,27 @@
+cff-version: 1.2.0
+title: "Italian Hydrological Annals publication software"
+message: >
+  If you use, modify, or redistribute the ingestor software in this repository
+  (ingestor-frost/, ingestor-hydroserver/), please acknowledge the author below.
+  For citing the hydrological dataset itself, use CITATION.cff instead.
+type: software
+
+authors:
+  - name: "National Research Council of Italy (CNR)/Institute of Technologies and Environmental Intelligence (ITIAm)/ESSI-Lab"
+
+license: AGPL-3.0-or-later
+
+repository-code: https://github.com/ISPRA-BIO-ACAS/annali-idrologici
+
+url: https://github.com/ISPRA-BIO-ACAS/annali-idrologici
+
+abstract: >
+  Ingestor software for publishing the Italian Hydrological Annals through
+  FROST Server and HydroServer. Licensed under GNU AGPL v3.
+
+keywords:
+  - hydrology
+  - SensorThings API
+  - FROST Server
+  - HydroServer
+  - ingestor

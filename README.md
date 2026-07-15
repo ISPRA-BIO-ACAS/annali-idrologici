@@ -67,7 +67,8 @@ docker compose -f docker-compose-hydroserver.yml up -d
 
 The repository includes:
 
-- the quality-controlled database dump of the digitized *Annali Idrologici Italiani*;
+- the quality-controlled database dump of the digitized *Annali Idrologici Italiani* (`data/`, CC BY 4.0);
+- ingestor and publication software (`ingestor-frost/`, `ingestor-hydroserver/`, AGPL-3.0);
 - Docker configuration for deploying HydroServer and FROST Server;
 - configuration files and documentation required to publish the dataset.
 
@@ -75,14 +76,37 @@ The repository includes:
 
 Each GitHub release is automatically archived by **Zenodo** and assigned a persistent DOI.
 
-When citing this work:
+### Dataset (ISPRA BIO-ACAS)
+
+When you use the **hydrological data** under `data/`, cite the dataset. Metadata is in [`CITATION.cff`](CITATION.cff) (`type: dataset`, author: **ISPRA BIO-ACAS**, license: CC BY 4.0). The CNR-ITIAm software author is listed there as a **contributor** so they also appear on the linked **Zenodo** publication.
 
 - cite the **version DOI** corresponding to the specific release used in your work;
 - cite the **concept DOI** when referring to the dataset as a whole.
 
+GitHub's "Cite this repository" button uses `CITATION.cff` and refers to the **dataset**.
+
+### Software (CNR-ITIAm / ESSI-Lab)
+
+When you use or redistribute the **ingestor software** (`ingestor-frost/`, `ingestor-hydroserver/`), acknowledge:
+
+**National Research Council of Italy (CNR) / Institute of Technologies and Environmental Intelligence (ITIAm) / ESSI-Lab**
+
+Software citation metadata is in [`CITATION-software.cff`](CITATION-software.cff) (`type: software`, license: AGPL-3.0). Copyright notices are also in the source file headers.
+
 ## License
 
-The contents of this repository are distributed under the **Creative Commons Attribution 4.0 International (CC BY 4.0)** License.
+This repository uses **two licenses**, depending on what you use:
+
+| Content | Path | License |
+|---------|------|---------|
+| **Dataset** (Annals CSV/ZIP files and reference tables) | `data/` | [Creative Commons Attribution 4.0 International (CC BY 4.0)](LICENSE) |
+| **Software** (ingestors, FROST client, Docker tooling) | `ingestor-frost/`, `ingestor-hydroserver/` | [GNU Affero General Public License v3.0 (AGPL-3.0)](SOFTWARE-LICENSE) |
+
+- The full CC BY 4.0 legal text is in the repository root [`LICENSE`](LICENSE) file and applies to the hydrological **data** under `data/`.
+- **Source code** is licensed under AGPL-3.0; copyright and license notices are in the file headers (see `ingestor-frost/license/AGPL-3-header.txt` and `ingestor-hydroserver/license/AGPL-3-header.txt`).
+- Generated outputs under `data/processed/` are derived from the dataset and ingestor tooling; treat them as dataset derivatives when redistributing the Annals data.
+
+When citing or redistributing, follow the license that applies to the part you use (data vs. software).
 
 ## Acknowledgements
 

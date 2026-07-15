@@ -1,0 +1,16 @@
+# Software license (AGPL-3.0)
+
+The **source code** in this repository (ingestors, FROST client library, and
+related tooling under `ingestor-frost/` and `ingestor-hydroserver/`) is
+licensed under the **GNU Affero General Public License v3.0**.
+
+**Author:** National Research Council of Italy (CNR) / Institute of Technologies
+and Environmental Intelligence (ITIAm) / ESSI-Lab. See
+[`CITATION-software.cff`](CITATION-software.cff).
+
+- Full license text: https://www.gnu.org/licenses/agpl-3.0.html
+- Copyright notices appear in individual source file headers.
+
+The **dataset** in `data/` is **not** covered by AGPL. It is licensed under
+**Creative Commons Attribution 4.0 International (CC BY 4.0)** and attributed to
+**ISPRA BIO-ACAS**; see [`LICENSE`](LICENSE) and [`CITATION.cff`](CITATION.cff).

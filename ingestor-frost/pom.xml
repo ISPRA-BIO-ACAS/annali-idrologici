@@ -9,6 +9,14 @@
 	<name>Ingestor</name>
 	<description>Ingest tools for FROST Server (SensorThings API). Shared FROSTClient library and ingestors (e.g. Annals/ISPRA).</description>
 
+	<licenses>
+		<license>
+			<name>GNU Affero General Public License v3.0</name>
+			<url>https://www.gnu.org/licenses/agpl-3.0.html</url>
+			<distribution>repo</distribution>
+		</license>
+	</licenses>
+
 	<dependencies>
 		<dependency>
 			<groupId>org.apache.commons</groupId>
@@ -25,5 +33,42 @@
 	<properties>
 		<maven.compiler.source>21</maven.compiler.source>
 		<maven.compiler.target>21</maven.compiler.target>
+		<license.owner><![CDATA[National Research Council of Italy (CNR)/Institute of Technologies and Environmental Intelligence (ITIAm)/ESSI-Lab]]></license.owner>
 	</properties>
+
+	<build>
+		<plugins>
+			<plugin>
+				<groupId>com.mycila</groupId>
+				<artifactId>license-maven-plugin</artifactId>
+				<version>5.0.0</version>
+				<configuration>
+					<properties>
+						<owner>${license.owner}</owner>
+						<year>2026</year>
+					</properties>
+					<licenseSets>
+						<licenseSet>
+							<header>license/AGPL-3-header.txt</header>
+							<includes>
+								<include>**/*.java</include>
+							</includes>
+							<excludes>
+								<exclude>target/**</exclude>
+							</excludes>
+						</licenseSet>
+					</licenseSets>
+				</configuration>
+				<executions>
+					<execution>
+						<id>check-license-headers</id>
+						<phase>verify</phase>
+						<goals>
+							<goal>check</goal>
+						</goals>
+					</execution>
+				</executions>
+			</plugin>
+		</plugins>
+	</build>
 </project>

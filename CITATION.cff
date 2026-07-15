@@ -1,7 +1,11 @@
 cff-version: 1.2.0
 title: "Italian Hydrological Annals Interoperable Dataset"
 message: >
-  If you use this dataset, please cite it using the metadata below.
+  If you use the Italian Hydrological Annals *dataset* (CSV/ZIP files under
+  data/), please cite it using the metadata below. Author of the dataset:
+  ISPRA BIO-ACAS. Contributors include the CNR-ITIAm publication software
+  author listed below (also exported to the linked Zenodo record). For
+  software-only attribution see CITATION-software.cff.
 type: dataset
 
 authors:
@@ -31,19 +35,16 @@ contributors:
 
 license: CC-BY-4.0
 
-repository-code: https://github.com/ISPRA-BIO-ACAS/annali-idrologici
-
 url: https://github.com/ISPRA-BIO-ACAS/annali-idrologici
 
 abstract: >
   Digital database of the Italian Hydrological Annals obtained by
-  digitizing the original printed volumes, performing quality control,
-  and publishing the resulting database through HydroServer.
+  digitizing the original printed volumes and performing quality control.
+  Licensed under CC BY 4.0.
 
 keywords:
   - hydrology
   - Italy
   - Hydrological Annals
-  - HydroServer
   - time series
   - digitization

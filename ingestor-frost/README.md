@@ -36,6 +36,26 @@ Raw downloads live in `data/` (ZIP archives plus shared reference CSV files at t
 mvn compile
 ```
 
+## License
+
+Java sources in this module are licensed under **GNU AGPL v3** (author:
+**CNR-ITIAm / ESSI-Lab**; see [`../CITATION-software.cff`](../CITATION-software.cff)).
+The Annals **dataset** under `../data/` is licensed separately under **CC BY 4.0**
+and attributed to **ISPRA BIO-ACAS** (see [`../LICENSE`](../LICENSE) and
+[`../CITATION.cff`](../CITATION.cff)).
+
+Headers are managed with the [license-maven-plugin](https://github.com/mathieucarbou/license-maven-plugin):
+
+```bash
+# Add or update headers in src/**/*.java
+mvn license:format
+
+# Verify headers (also runs on mvn verify)
+mvn license:check
+```
+
+The header template is `license/AGPL-3-header.txt`. Set the copyright holder via the `license.owner` property in `pom.xml`.
+
 ## Run Annals ingestor
 
 Main class: **`eu.flora.essi.ingestor.annals.AnnalsIngestor`**
