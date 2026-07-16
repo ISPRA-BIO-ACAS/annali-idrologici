@@ -590,8 +590,8 @@ public class AnnalsIngestor {
 	thing.setProperties(properties);
 	thing.setName(station);
 	thing.setDescription(description);
-	BigDecimal lat = stations.getXLong(compartment, basin, station);
-	BigDecimal lon = stations.getYLat(compartment, basin, station);
+	BigDecimal lon = stations.getXLong(compartment, basin, station);
+	BigDecimal lat = stations.getYLat(compartment, basin, station);
 	BigDecimal elevation = stations.getZmslm(compartment, basin, station);
 	Location location = new Location(station, description, lon, lat, elevation);
 	thing.setLocation(location);
@@ -1015,8 +1015,8 @@ public class AnnalsIngestor {
 
     private Location createLocation(String compartment, String basin, String station) {
 	String description = "Compartimento: " + compartment + ", bacino: " + basin + ", stazione: " + station;
-	BigDecimal lat = stations.getXLong(compartment, basin, station);
-	BigDecimal lon = stations.getYLat(compartment, basin, station);
+	BigDecimal lon = stations.getXLong(compartment, basin, station);
+	BigDecimal lat = stations.getYLat(compartment, basin, station);
 	BigDecimal elevation = stations.getZmslm(compartment, basin, station);
 	return new Location(station, description, lon, lat, elevation);
     }
@@ -1100,6 +1100,8 @@ public class AnnalsIngestor {
     }
 
     public static void main(String[] args) throws Exception {
+	System.out.println("Available processors: " + Runtime.getRuntime().availableProcessors());
+
 	String frostBase = System.getenv("FROST_BASE_URL");
 
 	if (frostBase == null || frostBase.isEmpty()) {

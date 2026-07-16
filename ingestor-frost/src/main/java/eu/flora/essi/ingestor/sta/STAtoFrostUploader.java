@@ -25,6 +25,7 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -314,6 +315,36 @@ public final class STAtoFrostUploader {
     private static final String OBSERVATIONS_BATCH_PREFIX = "observations_";
 
     /**
+     * Sort batch files by number, then upload first batch, then last batch, then the rest in order.
+     * Example for 5 batches: 1, 5, 2, 3, 4.
+     */
+    private static List<Path> orderBatchFilesForUpload(List<Path> batchFiles) {
+        batchFiles.sort(Comparator.comparingInt(STAtoFrostUploader::batchFileNumber));
+        if (batchFiles.size() <= 2) {
+            return batchFiles;
+        }
+        List<Path> ordered = new ArrayList<>(batchFiles.size());
+        ordered.add(batchFiles.get(0));
+        ordered.add(batchFiles.get(batchFiles.size() - 1));
+        for (int i = 1; i < batchFiles.size() - 1; i++) {
+            ordered.add(batchFiles.get(i));
+        }
+        return ordered;
+    }
+
+    private static int batchFileNumber(Path batchFile) {
+        String name = batchFile.getFileName().toString();
+        if (!name.startsWith(OBSERVATIONS_BATCH_PREFIX) || !name.endsWith(".json")) {
+            return 0;
+        }
+        try {
+            return Integer.parseInt(name.substring(OBSERVATIONS_BATCH_PREFIX.length(), name.length() - ".json".length()));
+        } catch (NumberFormatException e) {
+            return 0;
+        }
+    }
+
+    /**
      * Execute a datastream upload task - loads and uploads observations in batches.
      * Supports two file formats:
      * 1. Batch files (observations_XXXX.json) containing pre-serialized $batch request body (preferred)
@@ -338,6 +369,8 @@ public final class STAtoFrostUploader {
         }
 
         if (batchFiles.isEmpty() && legacyFiles.isEmpty()) return;
+
+        batchFiles = orderBatchFilesForUpload(batchFiles);
 
         if (uploadVerbose) {
             System.out.println("  Uploading " + task.datastreamIdProp + ": " + batchFiles.size() + " batch file(s), "
