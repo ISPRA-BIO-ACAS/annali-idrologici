@@ -6,11 +6,17 @@ This repository contains the digitized and quality-controlled database of the hi
 
 The database was produced by digitizing the original printed volumes of the *Annali Idrologici Italiani* and performing quality control procedures prior to publication.
 
-The repository enables publication of the database through HydroServer, providing standardized and interoperable access to historical hydrological observations.
+The repository enables publication of the database through FROST server and HydroServer, providing standardized and interoperable access to historical hydrological observations, paving the way for integration of this dataset into data sharing initiatives such as HIS-Central.
+
+A linked Zenodo publication is made available, for enabling data preservation and open-science according to FAIR principles.
+
+A scientific publication is under preparation to document this work.
+
+![HIS-Central portal showing italian hydrological annals](images/his-central-annali.png)
 
 ## Quickstart
 
-The repository has the Annals data under `data/`. Prepared outputs are written to `data/processed/`; mapped STA JSON for FROST is written to `data/processed/sta/`. These folders are not committed to Git.
+The repository has compressed Annals data under `data/`, while generated processed data is written to `data/processed/`; mapped STA JSON for FROST is written to `data/processed/sta/`. These folders are not committed to Git.
 
 ### Data preparation (shared by both HydroServer and FROST server)
 
@@ -74,7 +80,7 @@ The repository includes:
 
 ## Citation
 
-Each GitHub release is automatically archived by **Zenodo** and assigned a persistent DOI.
+Each GitHub release is automatically archived by **Zenodo** and assigned a persistent DOI. Please cite as well the publication describing this work (more information will be here available, currently under prepraration).
 
 ### Dataset (ISPRA BIO-ACAS)
 
@@ -110,4 +116,4 @@ When citing or redistributing, follow the license that applies to the part you u
 
 ## Acknowledgements
 
-The digitization, quality control, and publication of the *Annali Idrologici Italiani* have been carried out by **ISPRA BIO-ACAS**, with the contribution of the repository contributors listed in the citation metadata.
+The digitization, quality control, and publication of the *Italian Hydrological Annnals Interoperable Dataset* have been carried out by **ISPRA BIO-ACAS**, with the contribution of the repository contributors listed in the citation metadata.
