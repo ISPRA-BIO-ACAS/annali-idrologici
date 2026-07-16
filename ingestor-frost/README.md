@@ -68,18 +68,33 @@ mvn exec:java -Dexec.mainClass="eu.flora.essi.ingestor.annals.AnnalsIngestor"
 
 Environment variables:
 
+### Prepare and map (`AnnalsPrepareAndMap`, `docker-compose-annals-prepare.yml`)
+
+| Variable | Purpose |
+|----------|---------|
+| `ANNALS_DATA_FOLDER` | Raw data folder (default: `data`) |
+| `ANNALS_LOCAL_FOLDER` | Working folder for processed data and STA output (default: `<ANNALS_DATA_FOLDER>/processed`) |
+| `ANNALS_PREPARE` | Extract ZIPs and sort `OSSERVAZIONI` CSVs into `processed/` (default: `true`) |
+| `ANNALS_PREPARE_FORCE` | Re-extract and re-sort even if outputs already exist (default: `false`) |
+| `ANNALS_MAP` | Map CSV → STA folder (default: `true`) |
+| `ANNALS_FAST` | Stop mapping after 1000 observations (smoke test; default: `false`) |
+| `ANNALS_MAX_OBSERVATIONS_PER_BATCH` | Observations per batch file written under `sta/` (default: `1000`; values above ~1000 may fail on the demo FROST Docker stack) |
+
+### Upload to FROST (`AnnalsIngestor`, `docker-compose-annals-frost-ingestor.yml`)
+
 | Variable | Purpose |
 |----------|---------|
 | `FROST_BASE_URL` | FROST server base URL (required) |
-| `ANNALS_DATA_FOLDER` | Raw data folder (default: `data`) |
-| `ANNALS_LOCAL_FOLDER` | Working folder for processed data and STA output (default: `<ANNALS_DATA_FOLDER>/processed`) |
-| `ANNALS_PREPARE` | Extract ZIPs and sort `OSSERVAZIONI` CSVs into `processed/` (default: `false`; use `AnnalsPrepareAndMap` or `docker-compose-annals-prepare.yml`) |
-| `ANNALS_PREPARE_FORCE` | Re-extract and re-sort even if outputs already exist (default: `false`) |
-| `ANNALS_MAP` | Map CSV → STA folder (default: `false`; use `AnnalsPrepareAndMap`) |
+| `ANNALS_DATA_FOLDER` | Raw data folder (reference CSVs; default: `data`) |
+| `ANNALS_LOCAL_FOLDER` | Folder containing mapped STA data (default: `<ANNALS_DATA_FOLDER>/processed`) |
+| `ANNALS_PREPARE` | Extract ZIPs and sort CSVs (default: `false`; use prepare compose instead) |
+| `ANNALS_MAP` | Map CSV → STA folder (default: `false`; use prepare compose instead) |
 | `ANNALS_UPLOAD` | Upload STA data to FROST (default: `true`) |
-| `ANNALS_FAST`, `ANNALS_MAX_OBSERVATIONS_PER_BATCH`, `ANNALS_UPLOAD_STRATEGY`, `ANNALS_USE_GZIP` | Upload tuning options |
+| `ANNALS_UPLOAD_STRATEGY` | Duplicate handling: `NONE`, `DELETE_BEFORE_UPLOAD`, `DETERMINISTIC_ID` (default: `DETERMINISTIC_ID`) |
 | `ANNALS_UPLOAD_PARALLELISM` | Parallel datastream observation uploads (default: `8`) |
 | `ANNALS_UPLOAD_VERBOSE` | Detailed per-datastream/batch upload logs (default: `false`) |
+| `ANNALS_USE_GZIP` | Gzip-compress HTTP request bodies (default: `false`) |
+| `ANNALS_LOG_REQUESTS` | Log every FROST HTTP request (default: `false`) |
 
 ## Docker
 

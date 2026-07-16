@@ -22,6 +22,8 @@ services:
       - persistence_db_password=ChangeMe
       - persistence_autoUpdateDatabase=true
       - persistence.idGenerationMode=ServerAndClientGenerated
+      - persistence_db_conn_max=40
+      - persistence_db_conn_idle_max=30
     ports:
       - 8082:8080
       - 8885:1883
@@ -31,6 +33,8 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+      start_period: 60s
+    # Compose waits until database healthcheck passes before starting FROST.
     depends_on:
       database:
         condition: service_healthy
@@ -45,11 +49,16 @@ services:
       - POSTGRES_PASSWORD=ChangeMe
     volumes:
       - annals-postgis-data:/var/lib/postgresql/data
+      - ./scripts/postgres-healthcheck.sh:/usr/local/bin/postgres-healthcheck.sh:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -d sensorthings -U sensorthings "]
-      interval: 2s
-      timeout: 2s
-      retries: 10
+      # pg_isready alone is not enough on first boot: PostGIS init runs Postgres,
+      # loads extensions, stops ("init process complete"), then starts for real.
+      # See scripts/postgres-healthcheck.sh
+      test: ["CMD", "postgres-healthcheck.sh"]
+      interval: 3s
+      timeout: 30s
+      retries: 40
+      start_period: 30s
     restart: "no"
     networks:
       - annals-frost-net

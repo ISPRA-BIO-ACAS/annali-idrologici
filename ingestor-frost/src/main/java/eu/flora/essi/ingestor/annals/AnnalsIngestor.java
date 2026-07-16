@@ -776,9 +776,10 @@ public class AnnalsIngestor {
      */
     private void mapToStaFolder() throws Exception {
 	Path staRoot = Paths.get(localFolder, "sta");
-	AnnalsToStaFolderWriter writer = new AnnalsToStaFolderWriter(staRoot);
+	AnnalsToStaFolderWriter writer = new AnnalsToStaFolderWriter(staRoot, maxObservationsPerBatch);
 
 	System.out.println("Mapping Annals data to STA folder: " + staRoot);
+	System.out.println("  Observations per batch file: " + maxObservationsPerBatch);
 
 	// Create sensors map (instrumentClass -> Sensor)
 	Map<String, Sensor> sensorsMap = new HashMap<>();
@@ -1123,8 +1124,9 @@ public class AnnalsIngestor {
 	    localFolder = processedDataFolder.toString();
 	}
 	boolean fast = getBooleanEnv("ANNALS_FAST", false);
-	boolean logRequests = false;
-	int maxObservationsPerBatch = getIntEnv("ANNALS_MAX_OBSERVATIONS_PER_BATCH", 2000);
+	boolean logRequests = getBooleanEnv("ANNALS_LOG_REQUESTS", false);
+	int maxObservationsPerBatch = getIntEnv("ANNALS_MAX_OBSERVATIONS_PER_BATCH",
+		AnnalsToStaFolderWriter.DEFAULT_OBSERVATIONS_PER_BATCH_FILE);
 
 	// Strategy to handle duplicate observations:
 	// - NONE: no duplicate handling (may create duplicates)
@@ -1151,6 +1153,7 @@ public class AnnalsIngestor {
 	System.out.println("  ANNALS_PREPARE=" + doPrepare);
 	System.out.println("  ANNALS_PREPARE_FORCE=" + prepareForce);
 	System.out.println("  ANNALS_FAST=" + fast);
+	System.out.println("  ANNALS_LOG_REQUESTS=" + logRequests);
 	System.out.println("  ANNALS_MAX_OBSERVATIONS_PER_BATCH=" + maxObservationsPerBatch);
 	System.out.println("  ANNALS_UPLOAD_STRATEGY=" + uploadStrategy);
 	System.out.println("  ANNALS_USE_GZIP=" + useGzipCompression);

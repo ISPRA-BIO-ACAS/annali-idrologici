@@ -55,6 +55,8 @@ public final class AnnalsPrepareAndMap {
 	boolean prepareForce = getBooleanEnv("ANNALS_PREPARE_FORCE", false);
 	boolean doMap = getBooleanEnv("ANNALS_MAP", true);
 	boolean fast = getBooleanEnv("ANNALS_FAST", false);
+	int maxObservationsPerBatch = getIntEnv("ANNALS_MAX_OBSERVATIONS_PER_BATCH",
+		AnnalsToStaFolderWriter.DEFAULT_OBSERVATIONS_PER_BATCH_FILE);
 
 	System.out.println("AnnalsPrepareAndMap configuration:");
 	System.out.println("  ANNALS_DATA_FOLDER=" + rawDataFolder.toAbsolutePath());
@@ -64,6 +66,7 @@ public final class AnnalsPrepareAndMap {
 	System.out.println("  ANNALS_PREPARE_FORCE=" + prepareForce);
 	System.out.println("  ANNALS_MAP=" + doMap);
 	System.out.println("  ANNALS_FAST=" + fast);
+	System.out.println("  ANNALS_MAX_OBSERVATIONS_PER_BATCH=" + maxObservationsPerBatch);
 
 	if (!doPrepare && !doMap) {
 	    System.err.println("Nothing to do: set ANNALS_PREPARE and/or ANNALS_MAP to true");
@@ -82,7 +85,7 @@ public final class AnnalsPrepareAndMap {
 		    localFolder,
 		    fast,
 		    false,
-		    2000,
+		    maxObservationsPerBatch,
 		    ObservationUploadStrategy.DETERMINISTIC_ID,
 		    false);
 	    ingestor.map();
@@ -108,5 +111,17 @@ public final class AnnalsPrepareAndMap {
 	}
 	val = val.trim().toLowerCase();
 	return val.equals("true") || val.equals("1") || val.equals("yes") || val.equals("y");
+    }
+
+    private static int getIntEnv(String name, int defaultValue) {
+	String val = System.getenv(name);
+	if (val == null || val.isEmpty()) {
+	    return defaultValue;
+	}
+	try {
+	    return Integer.parseInt(val.trim());
+	} catch (NumberFormatException e) {
+	    return defaultValue;
+	}
     }
 }
