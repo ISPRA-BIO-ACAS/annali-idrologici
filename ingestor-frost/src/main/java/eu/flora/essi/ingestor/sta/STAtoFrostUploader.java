@@ -38,6 +38,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.json.JSONObject;
 
 import eu.flora.essi.frost.Datastream;
+import eu.flora.essi.frost.FROSTBatchUploadException;
 import eu.flora.essi.frost.FROSTClient;
 import eu.flora.essi.frost.FROSTServiceUnavailableException;
 import eu.flora.essi.frost.Location;
@@ -122,7 +123,7 @@ public final class STAtoFrostUploader {
      * - Tasks are submitted immediately to the executor
      * - Completed tasks can be garbage collected while others are still running
      */
-    public void upload() throws Exception {
+    public void upload() throws FROSTServiceUnavailableException, FROSTBatchUploadException, Exception {
         Path thingsDir = staRoot.resolve(THINGS_DIR);
         
         if (!Files.isDirectory(thingsDir)) {
@@ -191,6 +192,7 @@ public final class STAtoFrostUploader {
         AtomicInteger submittedCount = new AtomicInteger(0);
         AtomicInteger lastPrintedObsCount = new AtomicInteger(0);
         AtomicReference<FROSTServiceUnavailableException> serviceUnavailable = new AtomicReference<>();
+        AtomicReference<FROSTBatchUploadException> fatalBatchError = new AtomicReference<>();
         List<Future<?>> futures = new ArrayList<>();
         Instant observationsPhaseStart = Instant.now();
 
@@ -215,18 +217,18 @@ public final class STAtoFrostUploader {
         for (DatastreamUploadTask task : datastreamTasks) {
             int taskNumber = submittedCount.incrementAndGet();
             Future<?> future = executor.submit(() -> {
-                if (serviceUnavailable.get() != null) {
+                if (serviceUnavailable.get() != null || fatalBatchError.get() != null) {
                     return;
                 }
                 String threadName = Thread.currentThread().getName();
                 inProgressDatastreams.incrementAndGet();
-                if (uploadVerbose || taskNumber <= observationUploadParallelism) {
-                    System.out.println("  [" + threadName + "] Starting datastream " + taskNumber + "/"
-                            + totalDatastreams + ": " + task.datastreamIdProp);
-                }
+                System.out.println("  [" + threadName + "] Starting datastream " + taskNumber + "/"
+                        + totalDatastreams + ": " + task.datastreamIdProp);
                 Instant taskStart = Instant.now();
                 try {
                     executeDatastreamUpload(task);
+                } catch (FROSTBatchUploadException e) {
+                    fatalBatchError.compareAndSet(null, e);
                 } catch (FROSTServiceUnavailableException e) {
                     serviceUnavailable.compareAndSet(null, e);
                 } catch (Exception e) {
@@ -239,10 +241,8 @@ public final class STAtoFrostUploader {
                     inProgressDatastreams.decrementAndGet();
                     int completed = completedDatastreams.incrementAndGet();
                     long taskMs = Duration.between(taskStart, Instant.now()).toMillis();
-                    if (uploadVerbose || taskMs >= SLOW_BATCH_LOG_THRESHOLD_MS || completed <= observationUploadParallelism) {
-                        System.out.println("  [" + threadName + "] Finished datastream " + completed + "/"
-                                + totalDatastreams + ": " + task.datastreamIdProp + " in " + taskMs + " ms");
-                    }
+                    System.out.println("  [" + threadName + "] Finished datastream " + completed + "/"
+                            + totalDatastreams + ": " + task.datastreamIdProp + " in " + taskMs + " ms");
                     int lastPrinted = lastPrintedObsCount.get();
                     if (completed - lastPrinted >= 25 || completed == totalDatastreams) {
                         if (lastPrintedObsCount.compareAndSet(lastPrinted, completed)) {
@@ -269,6 +269,11 @@ public final class STAtoFrostUploader {
                     executor.shutdownNow();
                     throw unavailable;
                 }
+                FROSTBatchUploadException batchFatal = fatalBatchError.get();
+                if (batchFatal != null) {
+                    executor.shutdownNow();
+                    throw batchFatal;
+                }
                 try {
                     f.get(OBSERVATION_UPLOAD_TIMEOUT_MINUTES, TimeUnit.MINUTES);
                 } catch (Exception e) {
@@ -286,6 +291,10 @@ public final class STAtoFrostUploader {
         FROSTServiceUnavailableException unavailable = serviceUnavailable.get();
         if (unavailable != null) {
             throw unavailable;
+        }
+        FROSTBatchUploadException batchFatal = fatalBatchError.get();
+        if (batchFatal != null) {
+            throw batchFatal;
         }
         
         int failed = failedCount.get();
@@ -344,6 +353,11 @@ public final class STAtoFrostUploader {
         }
     }
 
+    /** Count batch requests by parsing the pre-serialized file (send uses ofFile, not this string). */
+    private static int countBatchRequests(Path batchFile) throws IOException {
+        return new JSONObject(Files.readString(batchFile, StandardCharsets.UTF_8)).getJSONArray("requests").length();
+    }
+
     /**
      * Execute a datastream upload task - loads and uploads observations in batches.
      * Supports two file formats:
@@ -372,6 +386,18 @@ public final class STAtoFrostUploader {
 
         batchFiles = orderBatchFilesForUpload(batchFiles);
 
+        if (uploadVerbose && batchFiles.size() > 2) {
+            StringBuilder order = new StringBuilder();
+            for (int i = 0; i < batchFiles.size(); i++) {
+                if (i > 0) {
+                    order.append(", ");
+                }
+                order.append(batchFiles.get(i).getFileName());
+            }
+            System.out.println("  Upload order for " + task.datastreamIdProp + " (" + batchFiles.size()
+                    + " batches, first/last/middle): " + order);
+        }
+
         if (uploadVerbose) {
             System.out.println("  Uploading " + task.datastreamIdProp + ": " + batchFiles.size() + " batch file(s), "
                     + legacyFiles.size() + " legacy file(s)");
@@ -396,14 +422,19 @@ public final class STAtoFrostUploader {
             }
         }
 
-        // Process batch files first - pre-serialized $batch body, send directly as raw string
-        // No JSON parsing, no JSON serialization - maximum efficiency!
+        // Process batch files first - stream file bytes directly (curl --data-binary equivalent)
         for (int batchIndex = 0; batchIndex < batchFiles.size(); batchIndex++) {
             Path batchFile = batchFiles.get(batchIndex);
             Instant batchStart = Instant.now();
             try {
-                String batchBody = Files.readString(batchFile, StandardCharsets.UTF_8);
-                client.postBatchRaw(batchBody);
+                long batchBytes = Files.size(batchFile);
+                int requestCount = countBatchRequests(batchFile);
+                client.postBatchFile(batchFile, task.datastreamId, requestCount, task.datastreamIdProp,
+                        batchFile.getFileName().toString());
+                long batchMs = Duration.between(batchStart, Instant.now()).toMillis();
+                System.out.println("  Posted " + batchFile.getFileName() + " (upload " + (batchIndex + 1) + "/"
+                        + batchFiles.size() + ") for " + task.datastreamIdProp + ", " + batchBytes + " bytes, "
+                        + requestCount + " observations in " + batchMs + " ms");
             } catch (Exception e) {
                 System.err.println("Error posting batch file " + batchFile.getFileName() 
                         + " for datastream " + task.datastreamIdProp + ": " + e.getMessage());
@@ -411,19 +442,6 @@ public final class STAtoFrostUploader {
                     System.err.println("  Cause: " + e.getCause().getMessage());
                 }
                 throw e;
-            } finally {
-                long batchMs = Duration.between(batchStart, Instant.now()).toMillis();
-                if (uploadVerbose || batchMs >= SLOW_BATCH_LOG_THRESHOLD_MS) {
-                    long batchBytes = -1;
-                    try {
-                        batchBytes = Files.size(batchFile);
-                    } catch (IOException ignored) {
-                        // ignore size lookup errors in logging
-                    }
-                    System.out.println("  Posted batch " + (batchIndex + 1) + "/" + batchFiles.size() + " for "
-                            + task.datastreamIdProp + " (" + batchFile.getFileName()
-                            + (batchBytes >= 0 ? ", " + batchBytes + " bytes" : "") + ") in " + batchMs + " ms");
-                }
             }
         }
 
@@ -444,7 +462,8 @@ public final class STAtoFrostUploader {
                     Observation obs = new Observation(new JSONObject(Files.readString(p, StandardCharsets.UTF_8)));
                     
                     if (useDeterministicIds) {
-                        Long deterministicId = generateDeterministicId(task.datastreamId, obs.getPhenomenonTime());
+                        Long deterministicId = DeterministicIdGenerator.observationId(task.datastreamIdProp,
+                                obs.getPhenomenonTime());
                         obs.setId(deterministicId);
                     }
                     obsBatch.add(obs);
@@ -694,20 +713,5 @@ public final class STAtoFrostUploader {
 
         // Collect lightweight task info - observations NOT loaded here (lazy loading)
         datastreamTasks.add(new DatastreamUploadTask(taskDsId, datastreamIdProp, observationsDir));
-    }
-
-    /**
-     * Generate a deterministic ID for an observation based on datastream ID and phenomenonTime.
-     * Uses a hash to create a unique, reproducible ID.
-     */
-    private Long generateDeterministicId(Long datastreamId, String phenomenonTime) {
-        if (phenomenonTime == null) {
-            phenomenonTime = "";
-        }
-        String key = datastreamId + "_" + phenomenonTime;
-        // Use a simple hash that fits in Long range and is positive
-        long hash = key.hashCode();
-        // Make it positive and combine with datastream ID for uniqueness
-        return Math.abs(hash) + (datastreamId * 1_000_000_000L);
     }
 }

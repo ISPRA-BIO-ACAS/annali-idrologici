@@ -31,6 +31,8 @@ public final class DeterministicIdGenerator {
     private static final long SENSOR_OFFSET = 4_000_000_000L;
     private static final long OBSERVED_PROPERTY_OFFSET = 5_000_000_000L;
     private static final long OBSERVATION_OFFSET = 6_000_000_000L;
+    /** Observation IDs use a much larger space than other entities (millions of obs across all datastreams). */
+    private static final long OBSERVATION_ID_SPACE = 1L << 37;
 
     private DeterministicIdGenerator() {
         // Utility class
@@ -74,14 +76,17 @@ public final class DeterministicIdGenerator {
 
     /**
      * Generate a deterministic ID for an Observation based on datastreamIdProp + phenomenonTime.
+     * Uses a wide hash space (~137 billion values) to avoid cross-datastream collisions.
      */
     public static Long observationId(String datastreamIdProp, String phenomenonTime) {
-        String key = datastreamIdProp + "_" + (phenomenonTime != null ? phenomenonTime : "");
-        return generateId(key, OBSERVATION_OFFSET);
+        String key = datastreamIdProp + "\0" + (phenomenonTime != null ? phenomenonTime : "");
+        long hash = betterHash(key) & (OBSERVATION_ID_SPACE - 1);
+        return OBSERVATION_OFFSET + hash;
     }
 
     /**
-     * Core ID generation: produces a positive Long from a string key.
+     * Core ID generation for entity types with relatively few instances (things, datastreams, …).
+     * Produces a positive Long from a string key in a 1-billion slot range above {@code offset}.
      */
     private static Long generateId(String key, long offset) {
         if (key == null) {

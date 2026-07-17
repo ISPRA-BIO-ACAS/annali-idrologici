@@ -55,6 +55,7 @@ import org.json.JSONObject;
 
 import eu.flora.essi.frost.Datastream;
 import eu.flora.essi.frost.Datastream.UnitOfMeasurement;
+import eu.flora.essi.frost.FROSTBatchUploadException;
 import eu.flora.essi.frost.FROSTClient;
 import eu.flora.essi.frost.FROSTServiceUnavailableException;
 import eu.flora.essi.frost.Location;
@@ -721,7 +722,7 @@ public class AnnalsIngestor {
     /**
      * Upload already-mapped STA data to FROST server using STAtoFrostUploader.
      */
-    public void upload() throws FROSTServiceUnavailableException {
+    public void upload() throws FROSTServiceUnavailableException, FROSTBatchUploadException {
 	Instant start = Instant.now();
 	System.out.println("Started upload at " + ISO_TIME.format(start) + " UTC");
 
@@ -748,6 +749,9 @@ public class AnnalsIngestor {
 		    true, false, uploadParallelism, uploadVerbose);
 	    uploader.upload();
 	    System.out.println("Upload finished.");
+	} catch (FROSTBatchUploadException e) {
+	    e.printFatalBanner(System.err);
+	    throw e;
 	} catch (FROSTServiceUnavailableException e) {
 	    System.err.println(e.getMessage());
 	    throw e;
@@ -1177,6 +1181,9 @@ public class AnnalsIngestor {
 	if (doUpload) {
 	    try {
 		ingestor.upload(); // upload STA folder to FROST server
+	    } catch (FROSTBatchUploadException e) {
+		e.printFatalBanner(System.err);
+		System.exit(1);
 	    } catch (FROSTServiceUnavailableException e) {
 		System.exit(1);
 	    }

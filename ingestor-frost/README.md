@@ -91,7 +91,10 @@ Environment variables:
 | `ANNALS_MAP` | Map CSV → STA folder (default: `false`; use prepare compose instead) |
 | `ANNALS_UPLOAD` | Upload STA data to FROST (default: `true`) |
 | `ANNALS_UPLOAD_STRATEGY` | Duplicate handling: `NONE`, `DELETE_BEFORE_UPLOAD`, `DETERMINISTIC_ID` (default: `DETERMINISTIC_ID`) |
-| `ANNALS_UPLOAD_PARALLELISM` | Parallel datastream observation uploads (default: `8`) |
+| `ANNALS_UPLOAD_PARALLELISM` | Parallel datastream observation uploads (default: `1`) |
+| `ANNALS_BATCH_UPLOAD_TIMEOUT_MINUTES` | End-to-end timeout per `$batch` POST, including FROST processing time (default: `120`) |
+| `ANNALS_BATCH_VERIFY_TIMEOUT_SECONDS` | Max wait while polling observation count after a batch POST (default: `600`) |
+| `ANNALS_BATCH_VERIFY_POLL_INTERVAL_MS` | Interval between count polls after a batch POST (default: `2000`) |
 | `ANNALS_UPLOAD_VERBOSE` | Detailed per-datastream/batch upload logs (default: `false`) |
 | `ANNALS_USE_GZIP` | Gzip-compress HTTP request bodies (default: `false`) |
 | `ANNALS_LOG_REQUESTS` | Log every FROST HTTP request (default: `false`) |

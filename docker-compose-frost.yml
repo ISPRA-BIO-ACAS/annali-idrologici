@@ -24,6 +24,11 @@ services:
       - persistence.idGenerationMode=ServerAndClientGenerated
       - persistence_db_conn_max=40
       - persistence_db_conn_idle_max=30
+      # FROST logging (see https://fraunhoferiosb.github.io/FROST-Server/deployment/docker.html)
+      # For batch/json debugging: FROST_LL=DEBUG FROST_LL_service=DEBUG
+      - FROST_LL=${FROST_LL:-INFO}
+      - FROST_LL_service=${FROST_LL_SERVICE:-INFO}
+      - FROST_LL_parser=${FROST_LL_PARSER:-INFO}
     ports:
       - 8082:8080
       - 8885:1883

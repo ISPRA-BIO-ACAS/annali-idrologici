@@ -20,6 +20,7 @@ package eu.flora.essi.frost;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.Reader;
 import java.net.ConnectException;
@@ -29,10 +30,14 @@ import java.net.http.HttpClient;
 import java.net.http.HttpConnectTimeoutException;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.net.http.HttpTimeoutException;
 import java.nio.channels.UnresolvedAddressException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.net.SocketTimeoutException;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -55,6 +60,16 @@ public class FROSTClient {
     public static boolean useGzipCompression = false;
     /** Minimum body size (bytes) to apply gzip compression (smaller bodies may not benefit). */
     private static final int GZIP_THRESHOLD = 1024;
+    /** Default end-to-end timeout for large $batch POSTs (request send + server processing + response read). */
+    private static final int DEFAULT_BATCH_UPLOAD_TIMEOUT_MINUTES = 120;
+    /** Default max wait while polling observation count after a batch POST. */
+    private static final int DEFAULT_BATCH_VERIFY_TIMEOUT_SECONDS = 600;
+    /** Default interval between observation count polls after a batch POST. */
+    private static final int DEFAULT_BATCH_VERIFY_POLL_INTERVAL_MS = 2000;
+    /** Consecutive unchanged polls before treating FROST count as settled (after min elapsed time). */
+    private static final int BATCH_VERIFY_STABLE_POLLS = 5;
+    /** Minimum time after batch POST before accepting a stable count below expected as final. */
+    private static final long BATCH_VERIFY_MIN_ELAPSED_MS = 60_000L;
 
     public FROSTClient(String baseUrl) {
 	// Ensure base URL ends with /
@@ -64,7 +79,11 @@ public class FROSTClient {
 	    this.baseUrl = baseUrl;
 	}
 
-	this.httpClient = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(30)).build();
+	// HTTP/1.1 avoids occasional large-payload issues seen with the Java client's HTTP/2 stack.
+	this.httpClient = HttpClient.newBuilder()
+		.version(HttpClient.Version.HTTP_1_1)
+		.connectTimeout(Duration.ofSeconds(30))
+		.build();
     }
 
     public String getBaseUrl() {
@@ -91,7 +110,8 @@ public class FROSTClient {
 		    || current instanceof HttpConnectTimeoutException
 		    || current instanceof UnknownHostException
 		    || current instanceof UnresolvedAddressException
-		    || current instanceof SocketTimeoutException) {
+		    || current instanceof SocketTimeoutException
+		    || current instanceof HttpTimeoutException) {
 		return true;
 	    }
 	}
@@ -871,7 +891,7 @@ public class FROSTClient {
     }
 
     private void executePost(String url, String body) throws IOException, InterruptedException {
-	executePostReturningJson(url, body);
+	executePostReturningJson(url, body, null);
     }
 
     /**
@@ -879,13 +899,22 @@ public class FROSTClient {
      * Uses gzip compression for request body if enabled and body exceeds threshold.
      */
     public JSONObject executePostReturningJson(String url, String body) throws IOException, InterruptedException {
+	return executePostReturningJson(url, body, null);
+    }
+
+    private JSONObject executePostReturningJson(String url, String body, Duration requestTimeout)
+	    throws IOException, InterruptedException {
 	HttpRequest.Builder builder = HttpRequest.newBuilder().uri(URI.create(url))
 		.header("Accept", "application/json");
-	
+
+	if (requestTimeout != null) {
+	    builder.timeout(requestTimeout);
+	}
+
 	if (useGzipCompression) {
 	    builder.header("Accept-Encoding", "gzip");
 	}
-	
+
 	// Compress request body if enabled and large enough
 	if (useGzipCompression && body.length() >= GZIP_THRESHOLD) {
 	    byte[] compressedBody = gzipCompress(body);
@@ -896,13 +925,13 @@ public class FROSTClient {
 	} else {
 	    builder.header("Content-Type", "application/json")
 		   .POST(HttpRequest.BodyPublishers.ofString(body));
-	    if (logRequests) System.out.println("POST "+url);
+	    if (logRequests) System.out.println("POST "+url+" (" + body.length() + " bytes)");
 	}
-	
+
 	HttpRequest request = builder.build();
 	HttpResponse<byte[]> response = send(request, HttpResponse.BodyHandlers.ofByteArray());
 	if (logRequests) System.out.println("POSTED "+url);
-	
+
 	if (response.statusCode() < 200 || response.statusCode() >= 300) {
 	    String errorBody = decodeResponse(response);
 	    System.err.println("Error with request to " + url + ", body:");
@@ -911,6 +940,214 @@ public class FROSTClient {
 	}
 	String responseBody = decodeResponse(response);
 	return (responseBody == null || responseBody.isEmpty()) ? new JSONObject() : new JSONObject(responseBody);
+    }
+
+    private static Duration batchUploadTimeout() {
+	String val = System.getenv("ANNALS_BATCH_UPLOAD_TIMEOUT_MINUTES");
+	int minutes = DEFAULT_BATCH_UPLOAD_TIMEOUT_MINUTES;
+	if (val != null && !val.isEmpty()) {
+	    try {
+		minutes = Integer.parseInt(val.trim());
+	    } catch (NumberFormatException ignored) {
+		// keep default
+	    }
+	}
+	return Duration.ofMinutes(Math.max(1, minutes));
+    }
+
+    private static Duration batchVerifyTimeout() {
+	String val = System.getenv("ANNALS_BATCH_VERIFY_TIMEOUT_SECONDS");
+	int seconds = DEFAULT_BATCH_VERIFY_TIMEOUT_SECONDS;
+	if (val != null && !val.isEmpty()) {
+	    try {
+		seconds = Integer.parseInt(val.trim());
+	    } catch (NumberFormatException ignored) {
+		// keep default
+	    }
+	}
+	return Duration.ofSeconds(Math.max(5, seconds));
+    }
+
+    private static int batchVerifyPollIntervalMs() {
+	String val = System.getenv("ANNALS_BATCH_VERIFY_POLL_INTERVAL_MS");
+	int ms = DEFAULT_BATCH_VERIFY_POLL_INTERVAL_MS;
+	if (val != null && !val.isEmpty()) {
+	    try {
+		ms = Integer.parseInt(val.trim());
+	    } catch (NumberFormatException ignored) {
+		// keep default
+	    }
+	}
+	return Math.max(250, ms);
+    }
+
+    private void verifyObservationsInserted(Long datastreamId, String datastreamLabel, String batchFileName,
+	    long countBefore, int expectedRequestCount) throws IOException, InterruptedException {
+	Instant verifyStart = Instant.now();
+	Instant deadline = verifyStart.plus(batchVerifyTimeout());
+	int pollIntervalMs = batchVerifyPollIntervalMs();
+	long lastCount = countBefore;
+	int stablePolls = 0;
+	Instant lastIncrease = verifyStart;
+	long lastProgressLogMs = 0L;
+
+	while (Instant.now().isBefore(deadline)) {
+	    long countAfter = getObservationCountForDatastream(datastreamId);
+	    long inserted = countAfter - countBefore;
+	    if (inserted >= expectedRequestCount) {
+		if (logRequests) {
+		    System.out.println("Verified " + inserted + " observations created for datastream " + datastreamId);
+		}
+		return;
+	    }
+
+	    if (countAfter > lastCount) {
+		lastCount = countAfter;
+		lastIncrease = Instant.now();
+		stablePolls = 0;
+	    } else {
+		stablePolls++;
+	    }
+
+	    long elapsedMs = Duration.between(verifyStart, Instant.now()).toMillis();
+	    if (elapsedMs - lastProgressLogMs >= 30_000L) {
+		System.out.println("  Batch verify: " + inserted + "/" + expectedRequestCount
+			+ " observations visible for datastream " + datastreamId + " (still waiting on FROST)...");
+		lastProgressLogMs = elapsedMs;
+	    }
+
+	    long sinceLastIncreaseMs = Duration.between(lastIncrease, Instant.now()).toMillis();
+	    if (stablePolls >= BATCH_VERIFY_STABLE_POLLS
+		    && elapsedMs >= BATCH_VERIFY_MIN_ELAPSED_MS
+		    && sinceLastIncreaseMs >= BATCH_VERIFY_MIN_ELAPSED_MS) {
+		break;
+	    }
+
+	    Thread.sleep(pollIntervalMs);
+	}
+
+	long countAfter = getObservationCountForDatastream(datastreamId);
+	long inserted = countAfter - countBefore;
+	if (inserted < expectedRequestCount) {
+	    throw new FROSTBatchUploadException(datastreamLabel, datastreamId, batchFileName, inserted,
+		    expectedRequestCount);
+	}
+	if (logRequests) {
+	    System.out.println("Verified " + inserted + " observations created for datastream " + datastreamId);
+	}
+    }
+
+    /**
+     * Return the number of observations for a datastream using the navigation property
+     * {@code Datastreams(id)/Observations?$count=true}.
+     */
+    public long getObservationCountForDatastream(Long datastreamId) throws IOException, InterruptedException {
+	String url = baseUrl + "Datastreams(" + datastreamId + ")/Observations?$count=true&$top=0";
+	JSONObject response = executeGet(url);
+	return response.has("@iot.count") ? response.getLong("@iot.count") : 0L;
+    }
+
+    /**
+     * POST a $batch body from a file using {@link HttpRequest.BodyPublishers#ofFile(Path)},
+     * equivalent to {@code curl --data-binary @file}. Streams the exact file bytes on the wire
+     * without a String round-trip.
+     */
+    private void executeBatchPostFromFile(String url, Path batchFile, Duration requestTimeout)
+	    throws IOException, InterruptedException {
+	long fileSize = Files.size(batchFile);
+	HttpRequest.Builder builder = HttpRequest.newBuilder().uri(URI.create(url))
+		.header("Accept", "application/json");
+
+	if (requestTimeout != null) {
+	    builder.timeout(requestTimeout);
+	}
+
+	if (useGzipCompression) {
+	    builder.header("Accept-Encoding", "gzip");
+	}
+
+	if (useGzipCompression && fileSize >= GZIP_THRESHOLD) {
+	    String body = Files.readString(batchFile, StandardCharsets.UTF_8);
+	    byte[] compressedBody = gzipCompress(body);
+	    builder.header("Content-Type", "application/json")
+		   .header("Content-Encoding", "gzip")
+		   .POST(HttpRequest.BodyPublishers.ofByteArray(compressedBody));
+	    if (logRequests) {
+		System.out.println("POST batch " + url + " (file " + fileSize + " bytes, gzip -> "
+			+ compressedBody.length + " bytes, draining response)");
+	    }
+	} else {
+	    builder.header("Content-Type", "application/json")
+		   .POST(HttpRequest.BodyPublishers.ofFile(batchFile));
+	    if (logRequests) {
+		System.out.println("POST batch " + url + " (file " + fileSize + " bytes, Content-Length="
+			+ fileSize + ", draining response)");
+	    }
+	}
+
+	sendBatchPostAndDrainResponse(builder.build(), url);
+    }
+
+    private void executeBatchPost(String url, String body, Duration requestTimeout)
+	    throws IOException, InterruptedException {
+	HttpRequest.Builder builder = HttpRequest.newBuilder().uri(URI.create(url))
+		.header("Accept", "application/json");
+
+	if (requestTimeout != null) {
+	    builder.timeout(requestTimeout);
+	}
+
+	if (useGzipCompression) {
+	    builder.header("Accept-Encoding", "gzip");
+	}
+
+	if (useGzipCompression && body.length() >= GZIP_THRESHOLD) {
+	    byte[] compressedBody = gzipCompress(body);
+	    builder.header("Content-Type", "application/json")
+		   .header("Content-Encoding", "gzip")
+		   .POST(HttpRequest.BodyPublishers.ofByteArray(compressedBody));
+	    if (logRequests) {
+		System.out.println("POST batch " + url + " (gzip: " + body.length() + " -> " + compressedBody.length
+			+ " bytes, draining response)");
+	    }
+	} else {
+	    builder.header("Content-Type", "application/json")
+		   .POST(HttpRequest.BodyPublishers.ofString(body));
+	    if (logRequests) {
+		System.out.println("POST batch " + url + " (" + body.length() + " chars, draining response)");
+	    }
+	}
+
+	sendBatchPostAndDrainResponse(builder.build(), url);
+    }
+
+    private void sendBatchPostAndDrainResponse(HttpRequest request, String url)
+	    throws IOException, InterruptedException {
+	HttpResponse<InputStream> response = send(request, HttpResponse.BodyHandlers.ofInputStream());
+	int status = response.statusCode();
+	try (InputStream in = response.body()) {
+	    if (status < 200 || status >= 300) {
+		byte[] errorBytes = in.readAllBytes();
+		String errorBody = new String(errorBytes, StandardCharsets.UTF_8);
+		System.err.println("Error with batch request to " + url);
+		throw requestFailed("POST", url, status, errorBody);
+	    }
+	    try {
+		drainInputStream(in);
+	    } catch (IOException drainError) {
+		if (logRequests) {
+		    System.out.println("Batch response drain interrupted: " + drainError.getMessage()
+			    + " (will verify observation count)");
+		}
+	    }
+	}
+    }
+
+    private static void drainInputStream(InputStream in) throws IOException {
+	byte[] buffer = new byte[64 * 1024];
+	while (in.read(buffer) != -1) {
+	    // discard
+	}
     }
 
     private void executePatch(String url, JSONObject body) throws IOException, InterruptedException {
@@ -1383,10 +1620,63 @@ public class FROSTClient {
      * @param batchBodyString the pre-serialized $batch request body as a raw string
      */
     public void postBatchRaw(String batchBodyString) throws IOException, InterruptedException {
-	if (logRequests){
-	    System.out.println("Posting batch (raw string)...");
+	postBatchRaw(batchBodyString, null, 0, null, "batch");
+    }
+
+    public void postBatchRaw(String batchBodyString, Long datastreamId, int expectedRequestCount)
+	    throws IOException, InterruptedException {
+	postBatchRaw(batchBodyString, datastreamId, expectedRequestCount,
+		datastreamId != null ? String.valueOf(datastreamId) : null, "batch");
+    }
+
+    /**
+     * Post a pre-serialized $batch request body string directly.
+     * When {@code datastreamId} and {@code expectedRequestCount} are provided, verifies via {@code $count}
+     * that all observations were created instead of reading the (potentially huge) batch response body.
+     */
+    public void postBatchRaw(String batchBodyString, Long datastreamId, int expectedRequestCount,
+	    String datastreamLabel, String batchFileName) throws IOException, InterruptedException {
+	if (logRequests) {
+	    System.out.println("Posting batch (raw string, " + batchBodyString.length() + " bytes)...");
 	}
 	String url = baseUrl + "$batch";
-	executePost(url, batchBodyString);
+	Duration timeout = batchUploadTimeout();
+
+	Long countBefore = null;
+	if (datastreamId != null && expectedRequestCount > 0) {
+	    countBefore = getObservationCountForDatastream(datastreamId);
+	}
+
+	executeBatchPost(url, batchBodyString, timeout);
+
+	if (countBefore != null) {
+	    verifyObservationsInserted(datastreamId, datastreamLabel, batchFileName, countBefore, expectedRequestCount);
+	}
+    }
+
+    /**
+     * Post a pre-serialized $batch request body from a file (preferred for large batches).
+     * Uses {@link HttpRequest.BodyPublishers#ofFile(Path)} — the Java equivalent of
+     * {@code curl --data-binary @batch.json}.
+     */
+    public void postBatchFile(Path batchFile, Long datastreamId, int expectedRequestCount,
+	    String datastreamLabel, String batchFileName) throws IOException, InterruptedException {
+	long fileSize = Files.size(batchFile);
+	if (logRequests) {
+	    System.out.println("Posting batch file " + batchFile + " (" + fileSize + " bytes)...");
+	}
+	String url = baseUrl + "$batch";
+	Duration timeout = batchUploadTimeout();
+
+	Long countBefore = null;
+	if (datastreamId != null && expectedRequestCount > 0) {
+	    countBefore = getObservationCountForDatastream(datastreamId);
+	}
+
+	executeBatchPostFromFile(url, batchFile, timeout);
+
+	if (countBefore != null) {
+	    verifyObservationsInserted(datastreamId, datastreamLabel, batchFileName, countBefore, expectedRequestCount);
+	}
     }
 }
