@@ -31,8 +31,8 @@ public final class DeterministicIdGenerator {
     private static final long SENSOR_OFFSET = 4_000_000_000L;
     private static final long OBSERVED_PROPERTY_OFFSET = 5_000_000_000L;
     private static final long OBSERVATION_OFFSET = 6_000_000_000L;
-    /** Observation IDs use a much larger space than other entities (millions of obs across all datastreams). */
-    private static final long OBSERVATION_ID_SPACE = 1L << 37;
+    /** Time component width when packing (datastreamSlot * 2^32 + timeHash). */
+    private static final long TIME_HASH_MASK = 0xFFFF_FFFFL;
 
     private DeterministicIdGenerator() {
         // Utility class
@@ -76,12 +76,15 @@ public final class DeterministicIdGenerator {
 
     /**
      * Generate a deterministic ID for an Observation based on datastreamIdProp + phenomenonTime.
-     * Uses a wide hash space (~137 billion values) to avoid cross-datastream collisions.
+     * <p>
+     * IDs are packed as {@code OBSERVATION_OFFSET + datastreamSlot * 2^32 + hash(phenomenonTime)},
+     * where {@code datastreamSlot} is the unique slot of the parent datastream. Different datastreams
+     * therefore cannot produce the same observation ID, even at the same phenomenonTime.
      */
     public static Long observationId(String datastreamIdProp, String phenomenonTime) {
-        String key = datastreamIdProp + "\0" + (phenomenonTime != null ? phenomenonTime : "");
-        long hash = betterHash(key) & (OBSERVATION_ID_SPACE - 1);
-        return OBSERVATION_OFFSET + hash;
+        long dsSlot = datastreamId(datastreamIdProp) - DATASTREAM_OFFSET;
+        long timeHash = betterHash(phenomenonTime != null ? phenomenonTime : "") & TIME_HASH_MASK;
+        return OBSERVATION_OFFSET + dsSlot * (TIME_HASH_MASK + 1L) + timeHash;
     }
 
     /**
