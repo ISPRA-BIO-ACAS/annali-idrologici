@@ -86,6 +86,15 @@ docker compose -f docker-compose-annals-hs-ingestor.yml up --build
 
 HydroServer is available at `http://localhost:8000/`.
 
+To ingest into a **different** HydroServer instance, set `HYDROSERVER_URL` (and credentials):
+
+```bash
+HYDROSERVER_URL=https://my-hydroserver.example.com \
+HYDROSERVER_EMAIL=you@example.com \
+HYDROSERVER_PASSWORD=secret \
+docker compose -f docker-compose-annals-hs-ingestor.yml up --build
+```
+
 To reset the database and start fresh:
 
 ```bash

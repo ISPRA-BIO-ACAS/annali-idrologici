@@ -24,7 +24,8 @@ from hydroserverpy import HydroServer
 from annali_ispra.ingest import AnnaliIngestor
 
 # Environment variables (defaults for local/docker):
-# HYDROSERVER_URL, HYDROSERVER_EMAIL, HYDROSERVER_PASSWORD,
+# HYDROSERVER_URL (e.g. http://host.docker.internal:8000 or https://my-hs.example.com),
+# HYDROSERVER_EMAIL, HYDROSERVER_PASSWORD,
 # HS_DATA_DIR, HS_WORKSPACE_NAME, HS_FAST
 def _format_duration(elapsed_ms: int) -> str:
     hours, rem = divmod(elapsed_ms, 3_600_000)
@@ -54,12 +55,21 @@ def main():
     started_wall = datetime.now(timezone.utc)
     logging.info("Ingestion started at %s", started_wall.isoformat())
 
-    url = os.environ.get("HYDROSERVER_URL", "http://hydroserver-web:8000")
-    email = os.environ.get("HYDROSERVER_EMAIL", "admin@localhost")
+    url = os.environ.get("HYDROSERVER_URL", "http://host.docker.internal:8000").strip().rstrip("/")
+    email = os.environ.get("HYDROSERVER_EMAIL", "admin@localhost").strip()
     password = os.environ.get("HYDROSERVER_PASSWORD", "")
 
+    if not url:
+        raise SystemExit(
+            "HYDROSERVER_URL is required (e.g. http://host.docker.internal:8000 "
+            "or https://my-hydroserver.example.com)"
+        )
+    if not email:
+        raise SystemExit("HYDROSERVER_EMAIL is required")
+    if not password:
+        raise SystemExit("HYDROSERVER_PASSWORD is required")
+
     logging.info("Email: %s", email)
-    logging.info("Password: %s", password)
     logging.info("URL: %s", url)
 
     max_attempts = int(os.environ.get("HS_AUTH_RETRIES", "100"))
