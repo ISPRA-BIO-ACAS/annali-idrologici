@@ -116,6 +116,13 @@ public class Datastream {
     }
 
     /**
+     * Entity self-link when present in the STA response ({@code @iot.selfLink}).
+     */
+    public String getSelfLink() {
+	return json.optString("@iot.selfLink", null);
+    }
+
+    /**
      * Get the Thing id from the Datastream's Thing reference (when present, e.g. with $expand=Thing).
      */
     public Long getThingId() {
@@ -145,6 +152,18 @@ public class Datastream {
 
     public void setProperties(JSONObject properties) {
 	json.put("properties", properties);
+    }
+
+    /**
+     * Phenomenon time for this datastream, typically an ISO-8601 interval
+     * ({@code start/end}) computed by the server from its observations.
+     */
+    public String getPhenomenonTime() {
+	return json.optString("phenomenonTime", null);
+    }
+
+    public void setPhenomenonTime(String phenomenonTime) {
+	json.put("phenomenonTime", phenomenonTime);
     }
 
     /**

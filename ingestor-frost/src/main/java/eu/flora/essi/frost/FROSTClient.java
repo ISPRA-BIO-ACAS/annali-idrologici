@@ -1038,13 +1038,24 @@ public class FROSTClient {
     }
 
     /**
+     * Return {@code @iot.count} for a collection path using {@code $count=true&$top=0}.
+     *
+     * @param entityPath collection or navigation path, e.g. {@code Things},
+     *                   {@code HistoricalLocations}, or {@code Datastreams(id)/Observations}
+     */
+    public long count(String entityPath) throws IOException, InterruptedException {
+	String path = entityPath.startsWith("/") ? entityPath.substring(1) : entityPath;
+	String url = baseUrl + path + (path.contains("?") ? "&" : "?") + "$count=true&$top=0";
+	JSONObject response = executeGet(url);
+	return response.has("@iot.count") ? response.getLong("@iot.count") : 0L;
+    }
+
+    /**
      * Return the number of observations for a datastream using the navigation property
      * {@code Datastreams(id)/Observations?$count=true}.
      */
     public long getObservationCountForDatastream(Long datastreamId) throws IOException, InterruptedException {
-	String url = baseUrl + "Datastreams(" + datastreamId + ")/Observations?$count=true&$top=0";
-	JSONObject response = executeGet(url);
-	return response.has("@iot.count") ? response.getLong("@iot.count") : 0L;
+	return count("Datastreams(" + datastreamId + ")/Observations");
     }
 
     /**

@@ -5,6 +5,9 @@
 #
 # Run once before ingestion (or again after raw data changes):
 #   docker compose -f docker-compose-annals-prepare.yml up --build
+#
+# Note: entrypoint is overridden to AnnalsPrepareAndMap (no FROST, no GitHub download);
+# raw data is expected already under ./data.
 services:
   annals-prepare:
     build:
@@ -18,7 +21,7 @@ services:
       - ANNALS_PREPARE_FORCE=${ANNALS_PREPARE_FORCE:-false}
       - ANNALS_MAP=${ANNALS_MAP:-true}
       - ANNALS_FAST=${ANNALS_FAST:-false}
-      - ANNALS_MAX_OBSERVATIONS_PER_BATCH=${ANNALS_MAX_OBSERVATIONS_PER_BATCH:-10000}
+      - ANNALS_MAX_OBSERVATIONS_PER_BATCH=${ANNALS_MAX_OBSERVATIONS_PER_BATCH:-100}
     volumes:
       - ./data:/data
     restart: "no"

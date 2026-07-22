@@ -18,6 +18,30 @@ A scientific publication is under preparation to document this work.
 
 The repository has compressed Annals data under `data/`, while generated processed data is written to `data/processed/`; mapped STA JSON for FROST is written to `data/processed/sta/`. These folders are not committed to Git.
 
+### Bring your own FROST (single container)
+
+If you already run a FROST Server, you can download the Annals data from GitHub, prepare it, map it to SensorThings, and upload it with one command. Build the image from this repository (or pull it from Docker Hub once published):
+
+```bash
+docker build -t isprabioacas/annals-frost-ingestor:latest ./ingestor-frost
+
+docker run --rm \
+  -e FROST_BASE_URL=https://my-frost.example.com/FROST-Server/v1.1/ \
+  -e ANNALS_MAX_OBSERVATIONS_PER_BATCH=1000 \
+  -e ANNALS_UPLOAD_PARALLELISM=16 \
+  -v annals-data:/data \
+  isprabioacas/annals-frost-ingestor:latest
+```
+
+- `FROST_BASE_URL` – full SensorThings root of your FROST instance (must include `/FROST-Server/v1.1/`)
+- `ANNALS_MAX_OBSERVATIONS_PER_BATCH` – observations per `$batch` upload (default `1000`)
+- `ANNALS_UPLOAD_PARALLELISM` – concurrent datastream upload threads (default `16`)
+- Optional volume `annals-data` caches downloaded/prepared data across runs
+
+Smoke test with a small subset: add `-e ANNALS_FAST=true`. To pin a dataset revision: `-e ANNALS_DATA_REF=v1.0.0`. To use a Zenodo/GitHub release archive instead of a git sparse clone: `-e ANNALS_DATA_URL=https://...`.
+
+Local multi-step compose workflows below are unchanged (prepare, FROST stack, frost/HydroServer ingestors).
+
 ### Data preparation (shared by both HydroServer and FROST server)
 
 Both publication targets use the same prepared CSV files under `data/processed/` (ZIP extraction and sorted `OSSERVAZIONI` files). FROST additionally needs the mapped STA folder at `data/processed/sta/`. HydroServer reads the prepared CSVs directly and does not use the STA folder. Run the following command to prepare the data (it will unzip, sort and map to STA).

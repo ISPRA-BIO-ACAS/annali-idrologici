@@ -8,7 +8,9 @@ Maven project for ingesting Annals (ISPRA) hydrological data into a FROST Server
   - `FROSTClient` – CRUD and batch operations for Things, Datastreams, Observations, Sensors, ObservedProperties, Locations, FeaturesOfInterest
   - Entity classes: `Thing`, `Datastream`, `Observation`, `Sensor`, `ObservedProperty`, `Location`, `FeatureOfInterest`
   - `FilterBuilder`, `PagedResult`
-  - Example classes: `FROSTClientAdvancedExample`, `FROSTClientFilterExample`
+  - Example / utility classes: `FROSTClientAdvancedExample`, `FROSTClientFilterExample`,
+    `STAEndpointStats` (endpoint summary: entity counts, Locations bbox, phenomenonTime
+    period stats, ObservedProperties), `RemoveDatastreamsByObservedPropertyName`
 
 - **`eu.flora.essi.ingestor.annals`** – Annals (ISPRA) ingestor:
   - `AnnalsIngestor` – prepares raw data, ingests Annals CSV data into FROST
@@ -56,6 +58,23 @@ mvn license:check
 
 The header template is `license/AGPL-3-header.txt`. Set the copyright holder via the `license.owner` property in `pom.xml`.
 
+## Run STA endpoint statistics
+
+Main class: **`eu.flora.essi.frost.STAEndpointStats`**
+
+Prints entity counts, Locations N-W-S-E bbox, Datastream `phenomenonTime` period stats
+(shortest / longest / median), and all ObservedProperties for a given FROST/STA root URL:
+
+```bash
+mvn -q exec:java -Dexec.mainClass="eu.flora.essi.frost.STAEndpointStats" \
+  -Dexec.args="https://emr-data.ispra.essi-lab.eu/FROST-Server/v1.1/"
+```
+
+Optional flags:
+- `--skip-observations-count` — Observations `$count` can be slow on large deployments
+- `--skip-observations-per-datastream` — skip min/median/max observations per Datastream (one `$count` per Datastream)
+- `--no-log-requests` — disable per-request `GET`/`GOT` logging (enabled by default)
+
 ## Run Annals ingestor
 
 Main class: **`eu.flora.essi.ingestor.annals.AnnalsIngestor`**
@@ -84,14 +103,14 @@ Environment variables:
 
 | Variable | Purpose |
 |----------|---------|
-| `FROST_BASE_URL` | FROST server base URL (required) |
+| `FROST_BASE_URL` | Full SensorThings root URL including `/FROST-Server/v1.1/` (required) |
 | `ANNALS_DATA_FOLDER` | Raw data folder (reference CSVs; default: `data`) |
 | `ANNALS_LOCAL_FOLDER` | Folder containing mapped STA data (default: `<ANNALS_DATA_FOLDER>/processed`) |
 | `ANNALS_PREPARE` | Extract ZIPs and sort CSVs (default: `false`; use prepare compose instead) |
 | `ANNALS_MAP` | Map CSV → STA folder (default: `false`; use prepare compose instead) |
 | `ANNALS_UPLOAD` | Upload STA data to FROST (default: `true`) |
 | `ANNALS_UPLOAD_STRATEGY` | Duplicate handling: `NONE`, `DELETE_BEFORE_UPLOAD`, `DETERMINISTIC_ID` (default: `DETERMINISTIC_ID`) |
-| `ANNALS_UPLOAD_PARALLELISM` | Parallel datastream observation uploads (default: `1`) |
+| `ANNALS_UPLOAD_PARALLELISM` | Parallel datastream observation uploads (default: `16` in Docker Hub / compose; Java fallback `8`) |
 | `ANNALS_BATCH_UPLOAD_TIMEOUT_MINUTES` | End-to-end timeout per `$batch` POST, including FROST processing time (default: `120`) |
 | `ANNALS_BATCH_VERIFY_TIMEOUT_SECONDS` | Max wait while polling observation count after a batch POST (default: `600`) |
 | `ANNALS_BATCH_VERIFY_POLL_INTERVAL_MS` | Interval between count polls after a batch POST (default: `2000`) |
@@ -101,9 +120,9 @@ Environment variables:
 
 ## Docker
 
-Multi-stage **`Dockerfile`**: Maven build, then JRE runtime with **`AnnalsIngestor`**.
+Multi-stage **`Dockerfile`**: Maven build, then JRE runtime. Default **`entrypoint.sh`** downloads Annals data when `/data` is empty, then runs **`AnnalsIngestor`** with prepare + map + upload enabled (bring-your-own-FROST / Docker Hub mode).
 
-The repository root provides Docker Compose files:
+The repository root Compose files override the entrypoint and mount `./data`, so the split prepare / upload workflow is unchanged:
 
 - **`docker-compose-annals-prepare.yml`** – extract ZIPs, sort CSVs, map to STA (`./data` → `data/processed/` and `data/processed/sta/`)
 - **`docker-compose-frost.yml`** – PostGIS + FROST Server (long-running)
@@ -113,21 +132,52 @@ The repository root provides Docker Compose files:
 
 See the root [README.md](../README.md).
 
+### Bring your own FROST (Docker Hub UX)
+
+```bash
+docker build -t isprabioacas/annals-frost-ingestor:latest .
+
+docker run --rm \
+  -e FROST_BASE_URL=https://my-frost.example.com/FROST-Server/v1.1/ \
+  -e ANNALS_MAX_OBSERVATIONS_PER_BATCH=1000 \
+  -e ANNALS_UPLOAD_PARALLELISM=16 \
+  -v annals-data:/data \
+  isprabioacas/annals-frost-ingestor:latest
+```
+
+| Variable | Purpose |
+|----------|---------|
+| `FROST_BASE_URL` | Full SensorThings root (**required** for upload; must include `/FROST-Server/v1.1/`) |
+| `ANNALS_MAX_OBSERVATIONS_PER_BATCH` | Observations per `$batch` (default: `1000`) |
+| `ANNALS_UPLOAD_PARALLELISM` | Concurrent datastream upload threads (default: `16`) |
+| `ANNALS_UPLOAD_STRATEGY` | `NONE`, `DELETE_BEFORE_UPLOAD`, `DETERMINISTIC_ID` (default: `DETERMINISTIC_ID`) |
+| `ANNALS_FAST` | Stop after ~1000 observations (smoke test) |
+| `ANNALS_DATA_REPO` / `ANNALS_DATA_REF` | Git source when `/data` is empty (default: this repo @ `main`) |
+| `ANNALS_DATA_URL` | Optional direct archive URL (Zenodo / release tarball) instead of git |
+| `ANNALS_SKIP_DOWNLOAD` | Fail if `/data` is empty instead of downloading (default: `false`) |
+| `ANNALS_DOWNLOAD_FORCE` | Re-download raw data even if already present (default: `false`) |
+
 Build the image only:
 
 ```bash
 docker build -t annals-ingestor .
 ```
 
-Run the ingestor manually:
+Run against a local FROST stack with already-mounted data (same as compose upload step):
 
 ```bash
 docker run --rm \
-  -e FROST_BASE_URL=http://frost-server:8080 \
+  --entrypoint java \
+  -e FROST_BASE_URL=http://frost-server:8080/FROST-Server/v1.1/ \
   -e ANNALS_DATA_FOLDER=/data \
   -e ANNALS_LOCAL_FOLDER=/data/processed \
+  -e ANNALS_PREPARE=false \
+  -e ANNALS_MAP=false \
+  -e ANNALS_UPLOAD=true \
   -v /path/to/data:/data \
-  annals-ingestor
+  annals-ingestor \
+  -cp /app/ingestor-1.0-SNAPSHOT.jar:/app/dependency/* \
+  eu.flora.essi.ingestor.annals.AnnalsIngestor
 ```
 
 ## Dependencies

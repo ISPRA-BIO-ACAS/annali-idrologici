@@ -37,6 +37,7 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
@@ -1111,10 +1112,20 @@ public class AnnalsIngestor {
 
 	if (frostBase == null || frostBase.isEmpty()) {
 	    System.err.println("Please set FROST_BASE_URL environment variable");
+	    System.err.println("Example: FROST_BASE_URL=https://my-frost.example.com/FROST-Server/v1.1/");
 	    System.exit(1);
 	}
 
-	String url = frostBase.replaceAll("/$", "") + "/FROST-Server/v1.1/";
+	String url = frostBase.trim();
+	if (!url.toLowerCase(Locale.ROOT).contains("/frost-server/")) {
+	    System.err.println("FROST_BASE_URL must include the SensorThings root path, e.g.:");
+	    System.err.println("  https://my-frost.example.com/FROST-Server/v1.1/");
+	    System.err.println("Got: " + frostBase);
+	    System.exit(1);
+	}
+	if (!url.endsWith("/")) {
+	    url = url + "/";
+	}
 
 	String dataFolderStr = System.getenv("ANNALS_DATA_FOLDER");
 	if (dataFolderStr == null || dataFolderStr.isEmpty()) {

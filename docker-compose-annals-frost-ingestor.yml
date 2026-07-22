@@ -8,6 +8,9 @@
 #
 # Run the ingestor:
 #   docker compose -f docker-compose-annals-frost-ingestor.yml up --build
+#
+# Note: entrypoint is overridden to skip Hub download / full-pipeline defaults;
+# this service uploads already prepared+mapped data from the ./data volume.
 services:
   annals-frost-ingestor:
     build:
@@ -15,14 +18,14 @@ services:
       dockerfile: Dockerfile
     entrypoint: ["java", "-cp", "/app/ingestor-1.0-SNAPSHOT.jar:/app/dependency/*", "eu.flora.essi.ingestor.annals.AnnalsIngestor"]
     environment:
-      - FROST_BASE_URL=${FROST_BASE_URL:-http://frost-server:8080}
+      - FROST_BASE_URL=${FROST_BASE_URL:-http://frost-server:8080/FROST-Server/v1.1/}
       - ANNALS_DATA_FOLDER=${ANNALS_DATA_FOLDER:-/data}
       - ANNALS_LOCAL_FOLDER=${ANNALS_LOCAL_FOLDER:-/data/processed}
       - ANNALS_PREPARE=${ANNALS_PREPARE:-false}
       - ANNALS_MAP=${ANNALS_MAP:-false}
       - ANNALS_UPLOAD=${ANNALS_UPLOAD:-true}
       - ANNALS_UPLOAD_STRATEGY=${ANNALS_UPLOAD_STRATEGY:-DETERMINISTIC_ID}
-      - ANNALS_UPLOAD_PARALLELISM=${ANNALS_UPLOAD_PARALLELISM:-1}
+      - ANNALS_UPLOAD_PARALLELISM=${ANNALS_UPLOAD_PARALLELISM:-16}
       - ANNALS_BATCH_UPLOAD_TIMEOUT_MINUTES=${ANNALS_BATCH_UPLOAD_TIMEOUT_MINUTES:-120}
       - ANNALS_BATCH_VERIFY_TIMEOUT_SECONDS=${ANNALS_BATCH_VERIFY_TIMEOUT_SECONDS:-600}
       - ANNALS_BATCH_VERIFY_POLL_INTERVAL_MS=${ANNALS_BATCH_VERIFY_POLL_INTERVAL_MS:-2000}

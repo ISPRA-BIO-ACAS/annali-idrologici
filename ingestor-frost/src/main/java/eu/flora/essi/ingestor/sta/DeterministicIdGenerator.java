@@ -31,8 +31,15 @@ public final class DeterministicIdGenerator {
     private static final long SENSOR_OFFSET = 4_000_000_000L;
     private static final long OBSERVED_PROPERTY_OFFSET = 5_000_000_000L;
     private static final long OBSERVATION_OFFSET = 6_000_000_000L;
-    /** Time component width when packing (datastreamSlot * 2^32 + timeHash). */
-    private static final long TIME_HASH_MASK = 0xFFFF_FFFFL;
+    /**
+     * Observation ID hash space. Kept below {@code 2^53} so {@code OBSERVATION_OFFSET + space}
+     * stays within the exact integer range of IEEE-754 doubles. FROST's JSON $batch parser
+     * rejects (HTTP 500 per request) observation {@code @iot.id} values that are not exactly
+     * representable as doubles — which the previous {@code dsSlot * 2^32} packing produced.
+     * {@code 2^52} (~4.5e15) is large enough that birthday collisions are negligible for
+     * tens of millions of observations.
+     */
+    private static final long OBSERVATION_ID_SPACE = 1L << 52;
 
     private DeterministicIdGenerator() {
         // Utility class
@@ -77,14 +84,16 @@ public final class DeterministicIdGenerator {
     /**
      * Generate a deterministic ID for an Observation based on datastreamIdProp + phenomenonTime.
      * <p>
-     * IDs are packed as {@code OBSERVATION_OFFSET + datastreamSlot * 2^32 + hash(phenomenonTime)},
-     * where {@code datastreamSlot} is the unique slot of the parent datastream. Different datastreams
-     * therefore cannot produce the same observation ID, even at the same phenomenonTime.
+     * Hashes the combined key into {@link #OBSERVATION_ID_SPACE} above {@link #OBSERVATION_OFFSET}.
+     * Including the datastream key in the hash keeps cross-datastream IDs distinct for the same
+     * phenomenonTime, without packing into values that break FROST {@code $batch} JSON parsing.
      */
     public static Long observationId(String datastreamIdProp, String phenomenonTime) {
-        long dsSlot = datastreamId(datastreamIdProp) - DATASTREAM_OFFSET;
-        long timeHash = betterHash(phenomenonTime != null ? phenomenonTime : "") & TIME_HASH_MASK;
-        return OBSERVATION_OFFSET + dsSlot * (TIME_HASH_MASK + 1L) + timeHash;
+        String key = (datastreamIdProp != null ? datastreamIdProp : "")
+                + "\0"
+                + (phenomenonTime != null ? phenomenonTime : "");
+        long hash = betterHash(key) & (OBSERVATION_ID_SPACE - 1);
+        return OBSERVATION_OFFSET + hash;
     }
 
     /**
