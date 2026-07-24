@@ -11,7 +11,7 @@ COPY ingest.py skos_client.py main.py ./
 RUN mkdir -p annali_ispra && touch annali_ispra/__init__.py && mv ingest.py skos_client.py annali_ispra/
 
 # HYDROSERVER_URL, HYDROSERVER_EMAIL, HYDROSERVER_PASSWORD, HS_DATA_DIR, HS_WORKSPACE_NAME, HS_FAST
-ENV HYDROSERVER_URL="http://hydroserver-web:8000" \
+ENV HYDROSERVER_URL="http://host.docker.internal:8000" \
     HS_DATA_DIR="/data" \
     HS_WORKSPACE_NAME="Annali" \
     HS_FAST="true"

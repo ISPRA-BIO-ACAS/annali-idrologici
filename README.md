@@ -23,14 +23,14 @@ The repository has compressed Annals data under `data/`, while generated process
 If you already run a FROST Server, you can download the Annals data from GitHub, prepare it, map it to SensorThings, and upload it with one command. Build the image from this repository (or pull it from Docker Hub once published):
 
 ```bash
-docker build -t isprabioacas/annals-frost-ingestor:latest ./ingestor-frost
+docker build -t essilab/annals-frost-ingestor:latest ./ingestor-frost
 
 docker run --rm \
   -e FROST_BASE_URL=https://my-frost.example.com/FROST-Server/v1.1/ \
   -e ANNALS_MAX_OBSERVATIONS_PER_BATCH=1000 \
   -e ANNALS_UPLOAD_PARALLELISM=16 \
   -v annals-data:/data \
-  isprabioacas/annals-frost-ingestor:latest
+  essilab/annals-frost-ingestor:latest
 ```
 
 - `FROST_BASE_URL` – full SensorThings root of your FROST instance (must include `/FROST-Server/v1.1/`)
