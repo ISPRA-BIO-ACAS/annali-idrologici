@@ -54,14 +54,16 @@ services:
       - POSTGRES_PASSWORD=ChangeMe
     volumes:
       - annals-postgis-data:/var/lib/postgresql/data
-      - ./scripts/postgres-healthcheck.sh:/usr/local/bin/postgres-healthcheck.sh:ro
     healthcheck:
-      # pg_isready alone is not enough on first boot: PostGIS init runs Postgres,
-      # loads extensions, stops ("init process complete"), then starts for real.
-      # See scripts/postgres-healthcheck.sh
-      test: ["CMD", "postgres-healthcheck.sh"]
+      # Use TCP (-h 127.0.0.1): init Postgres listens on socket only, so pg_isready
+      # without -h can succeed before PostGIS init finishes and the server restarts.
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -h 127.0.0.1 -U sensorthings -d sensorthings && psql -h 127.0.0.1 -U sensorthings -d sensorthings -tAc 'SELECT PostGIS_Version();' | grep -q .",
+        ]
       interval: 3s
-      timeout: 30s
+      timeout: 5s
       retries: 40
       start_period: 30s
     restart: "no"

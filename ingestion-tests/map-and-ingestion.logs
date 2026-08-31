@@ -1,0 +1,249 @@
+Annals raw data found in /data
+Starting Annals FROST ingestor
+  FROST_BASE_URL=https://annali.ispra.essi-lab.eu/
+  ANNALS_DATA_FOLDER=/data
+  ANNALS_LOCAL_FOLDER=/data/processed
+  ANNALS_PREPARE=true ANNALS_MAP=true ANNALS_UPLOAD=true
+  ANNALS_MAX_OBSERVATIONS_PER_BATCH=1000
+  ANNALS_UPLOAD_PARALLELISM=16
+Available processors: 8
+AnnalsIngestor configuration:
+  FROST_BASE_URL=https://annali.ispra.essi-lab.eu/
+  FROST URL=https://annali.ispra.essi-lab.eu/FROST-Server/v1.1/
+  ANNALS_DATA_FOLDER=/data
+  ANNALS_PROCESSED_FOLDER=/data/processed
+  ANNALS_LOCAL_FOLDER=/data/processed
+  ANNALS_PREPARE=true
+  ANNALS_PREPARE_FORCE=false
+  ANNALS_FAST=false
+  ANNALS_LOG_REQUESTS=false
+  ANNALS_MAX_OBSERVATIONS_PER_BATCH=1000
+  ANNALS_UPLOAD_STRATEGY=DETERMINISTIC_ID
+  ANNALS_USE_GZIP=false
+  ANNALS_MAP=true
+  ANNALS_UPLOAD=true
+Preparing Annals data
+  Raw folder: /data
+  Processed folder: /data/processed
+  Force overwrite: false
+Preparation summary:
+  Regional files copied: 0
+  Zip archives extracted: 0
+  Observation CSV files sorted: 0
+No files were prepared (already up to date or no input files found).
+Loading table COMPARTIMENTO.csv in memory
+Loaded COMPARTIMENTO.csv, total records: 14
+Loading table FLAG_QUALITY.csv in memory
+Loaded FLAG_QUALITY.csv, total records: 30
+Loading table GENERAL_METADATA.csv in memory
+Loaded GENERAL_METADATA.csv, total metadata: 13
+Loading table TIPO_GRANDEZZA.csv in memory
+Loaded TIPO_GRANDEZZA.csv, total records: 12
+Loading table TIPO_STRUMENTO.csv in memory
+Loaded TIPO_STRUMENTO.csv, total records: 20
+Loading table UNITA_MISURA_UDM.csv in memory
+Loaded UNITA_MISURA_UDM.csv, total records: 4
+Loading table ENTE_COMPILATORE_rev.csv in memory
+Loaded ENTE_COMPILATORE_rev.csv, total records: 7
+Loading table SERIE_TEMPORALI_BA_PeT.csv in memory
+Loaded SERIE_TEMPORALI_BA_PeT.csv, total records: 436
+Loading table STAZIONI_BA_PeT.csv in memory
+Loaded STAZIONI_BA_PeT.csv, total records: 215
+Loading table SERIE_TEMPORALI_BO_PeT.csv in memory
+Loaded SERIE_TEMPORALI_BO_PeT.csv, total records: 661
+Loading table STAZIONI_BO_PeT.csv in memory
+Loaded STAZIONI_BO_PeT.csv, total records: 489
+Started mapping at 2026-07-22T07:57:39.610588921 UTC
+Mapping Annals data to STA folder: /data/processed/sta
+  Observations per batch file: 1000
+Mapping 702 thing(s)...
+100 ... 200 ... 300 ... 400 ... 500 ... 600 ... 700 ... 
+Mapped 702 things, 1097 datastreams.
+Mapping observations from 4 file(s)...
+Processing file: OSSERVAZIONI_BA_P.csv (1/4)
+  0% (1/2694949 lines)
+  10% (269495/2694949 lines)
+  20% (538990/2694949 lines)
+  30% (808485/2694949 lines)
+  40% (1077980/2694949 lines)
+  50% (1347475/2694949 lines)
+  60% (1616970/2694949 lines)
+  70% (1886465/2694949 lines)
+  80% (2155960/2694949 lines)
+  90% (2425455/2694949 lines)
+Processing file: OSSERVAZIONI_BA_T.csv (2/4)
+  0% (1/2933803 lines)
+  10% (293381/2933803 lines)
+  20% (586761/2933803 lines)
+  30% (880141/2933803 lines)
+  40% (1173522/2933803 lines)
+  50% (1466902/2933803 lines)
+  60% (1760282/2933803 lines)
+  70% (2053663/2933803 lines)
+  80% (2347043/2933803 lines)
+  90% (2640423/2933803 lines)
+Processing file: OSSERVAZIONI_BO_T.csv (3/4)
+  0% (1/2058819 lines)
+  10% (205882/2058819 lines)
+  20% (411764/2058819 lines)
+  30% (617646/2058819 lines)
+  40% (823528/2058819 lines)
+  50% (1029410/2058819 lines)
+  60% (1235292/2058819 lines)
+  70% (1441174/2058819 lines)
+  80% (1647056/2058819 lines)
+  90% (1852938/2058819 lines)
+Processing file: OSSERVAZIONI_BO_P.csv (4/4)
+  0% (1/6035872 lines)
+  10% (603588/6035872 lines)
+  20% (1207175/6035872 lines)
+  30% (1810762/6035872 lines)
+  40% (2414349/6035872 lines)
+  50% (3017936/6035872 lines)
+  60% (3621524/6035872 lines)
+  70% (4225111/6035872 lines)
+  80% (4828698/6035872 lines)
+  90% (5432285/6035872 lines)
+Mapping finished. Total observations mapped: 13717593
+Ended at 2026-07-22T08:07:51.718178051 UTC
+Duration: 00:10:12.107
+Started upload at 2026-07-22T08:07:51.742547847 UTC
+Uploading STA data to FROST server https://annali.ispra.essi-lab.eu/FROST-Server/v1.1/
+  Max observations per batch: 1000
+  Duplicate handling strategy: DETERMINISTIC_ID
+  Observation upload parallelism: 16
+  Observation upload verbose logging: false
+Checking FROST server availability at https://annali.ispra.essi-lab.eu/FROST-Server/v1.1/
+FROST server is available.
+Processing 702 thing(s)...
+  Things: 0% (1/702)
+  Things: 10% (71/702)
+  Things: 20% (141/702)
+  Things: 30% (211/702)
+  Things: 40% (281/702)
+  Things: 50% (351/702)
+  Things: 60% (422/702)
+  Things: 70% (492/702)
+  Things: 80% (562/702)
+  Things: 90% (632/702)
+  Things: 100% (702/702)
+Uploading observations for 1097 datastream(s) in parallel (16 threads)...
+  [pool-1-thread-5] Starting datastream 5/1097: BO-RENO-BARGI-PG09
+  [pool-1-thread-4] Starting datastream 4/1097: BO-SAVIO-TERZO DI CARNAIO-PG09
+  [pool-1-thread-7] Starting datastream 7/1097: BO-TRONTO-CROCE DI CASALE-PG09
+  [pool-1-thread-3] Starting datastream 3/1097: BO-BACINI MINORI E ZONA DI PIANURA TRA USO E MARECCHIA-SANT'ARCANGELO DI ROMAGNA-PG09
+  [pool-1-thread-1] Starting datastream 1/1097: BO-METAURO-MONTELABREVE-PG09
+  [pool-1-thread-6] Starting datastream 6/1097: BO-BACINI MINORI TRA ESINO E MUSONE-TORRETTE-PG09
+  [pool-1-thread-12] Starting datastream 12/1097: BA-OFANTO-CASTEL LAGOPESOLE-TGMIN09
+  [pool-1-thread-10] Starting datastream 10/1097: BA-OFANTO-MONTICCHIO BAGNI-TGMAX09
+  [pool-1-thread-9] Starting datastream 9/1097: BA-OFANTO-MONTICCHIO BAGNI-PG09
+  [pool-1-thread-8] Starting datastream 8/1097: BA-OFANTO-MONTICCHIO BAGNI-TGMIN09
+  [pool-1-thread-2] Starting datastream 2/1097: BA-CANDELARO-MASSERIA PIDOCCHIARA-PG09
+  [pool-1-thread-11] Starting datastream 11/1097: BA-PENISOLA SALENTINA-UGENTO-PG09
+  [pool-1-thread-13] Starting datastream 13/1097: BA-OFANTO-CASTEL LAGOPESOLE-PG09
+  [pool-1-thread-14] Starting datastream 14/1097: BA-OFANTO-CASTEL LAGOPESOLE-TGMAX09
+  [pool-1-thread-15] Starting datastream 15/1097: BA-PENISOLA SALENTINA-MASSERIA PICCINNA-PG09
+  [pool-1-thread-16] Starting datastream 16/1097: BA-LAGO SALSO - LAGO SALPI - PALUDI DI CELENTANO-MASSERIA FEUDO DELLA PAGLIA-PG09
+  Submitted 1097 observation upload task(s) to thread pool.
+  Upload heartbeat: elapsed=30s completed=0/1097 inProgress=16 activeThreads=16 queued=1081 failed=0
+  Batch verify: 0/731 observations visible for datastream 3826280644 (still waiting on FROST)...
+  Batch verify: 0/730 observations visible for datastream 3707834953 (still waiting on FROST)...
+  Batch verify: 0/1000 observations visible for datastream 3243636218 (still waiting on FROST)...
+  Batch verify: 0/1000 observations visible for datastream 3210491615 (still waiting on FROST)...
+  Batch verify: 0/1000 observations visible for datastream 3422472047 (still waiting on FROST)...
+  Batch verify: 0/1000 observations visible for datastream 3346583313 (still waiting on FROST)...
+  Batch verify: 0/1000 observations visible for datastream 3650727605 (still waiting on FROST)...
+  Batch verify: 0/1000 observations visible for datastream 3671050164 (still waiting on FROST)...
+  Batch verify: 0/1000 observations visible for datastream 3339244642 (still waiting on FROST)...
+  Batch verify: 0/1000 observations visible for datastream 3553209180 (still waiting on FROST)...
+  Batch verify: 0/1000 observations visible for datastream 3904966762 (still waiting on FROST)...
+  Batch verify: 0/1000 observations visible for datastream 3697669083 (still waiting on FROST)...
+  Batch verify: 0/1000 observations visible for datastream 3532376591 (still waiting on FROST)...
+  Batch verify: 0/1000 observations visible for datastream 3216891243 (still waiting on FROST)...
+  Batch verify: 0/1000 observations visible for datastream 3020541177 (still waiting on FROST)...
+  Batch verify: 0/1000 observations visible for datastream 3366296510 (still waiting on FROST)...
+  Upload heartbeat: elapsed=60s completed=0/1097 inProgress=16 activeThreads=16 queued=1081 failed=0
+  Batch verify: 0/731 observations visible for datastream 3826280644 (still waiting on FROST)...
+Error posting batch file observations_0001.json for datastream BO-RENO-BARGI-PG09: Batch upload incomplete for BO-RENO-BARGI-PG09 (datastream 3826280644), file observations_0001.json: inserted 0 of 731 observations
+  [pool-1-thread-5] Finished datastream 1/1097: BO-RENO-BARGI-PG09 in 62506 ms
+  Batch verify: 0/730 observations visible for datastream 3707834953 (still waiting on FROST)...
+Error posting batch file observations_0001.json for datastream BA-PENISOLA SALENTINA-MASSERIA PICCINNA-PG09: Batch upload incomplete for BA-PENISOLA SALENTINA-MASSERIA PICCINNA-PG09 (datastream 3707834953), file observations_0001.json: inserted 0 of 730 observations
+  [pool-1-thread-15] Finished datastream 2/1097: BA-PENISOLA SALENTINA-MASSERIA PICCINNA-PG09 in 63021 ms
+  Batch verify: 0/1000 observations visible for datastream 3243636218 (still waiting on FROST)...
+Error posting batch file observations_0001.json for datastream BA-CANDELARO-MASSERIA PIDOCCHIARA-PG09: Batch upload incomplete for BA-CANDELARO-MASSERIA PIDOCCHIARA-PG09 (datastream 3243636218), file observations_0001.json: inserted 0 of 1000 observations
+  [pool-1-thread-2] Finished datastream 3/1097: BA-CANDELARO-MASSERIA PIDOCCHIARA-PG09 in 63079 ms
+  Batch verify: 0/1000 observations visible for datastream 3210491615 (still waiting on FROST)...
+Error posting batch file observations_0001.json for datastream BA-OFANTO-CASTEL LAGOPESOLE-TGMAX09: Batch upload incomplete for BA-OFANTO-CASTEL LAGOPESOLE-TGMAX09 (datastream 3210491615), file observations_0001.json: inserted 0 of 1000 observations
+  [pool-1-thread-14] Finished datastream 4/1097: BA-OFANTO-CASTEL LAGOPESOLE-TGMAX09 in 63222 ms
+  Batch verify: 0/1000 observations visible for datastream 3422472047 (still waiting on FROST)...
+Error posting batch file observations_0001.json for datastream BO-TRONTO-CROCE DI CASALE-PG09: Batch upload incomplete for BO-TRONTO-CROCE DI CASALE-PG09 (datastream 3422472047), file observations_0001.json: inserted 0 of 1000 observations
+  [pool-1-thread-7] Finished datastream 5/1097: BO-TRONTO-CROCE DI CASALE-PG09 in 63259 ms
+  Batch verify: 0/1000 observations visible for datastream 3346583313 (still waiting on FROST)...
+Error posting batch file observations_0001.json for datastream BA-OFANTO-CASTEL LAGOPESOLE-TGMIN09: Batch upload incomplete for BA-OFANTO-CASTEL LAGOPESOLE-TGMIN09 (datastream 3346583313), file observations_0001.json: inserted 0 of 1000 observations
+  [pool-1-thread-12] Finished datastream 6/1097: BA-OFANTO-CASTEL LAGOPESOLE-TGMIN09 in 63281 ms
+  Batch verify: 0/1000 observations visible for datastream 3650727605 (still waiting on FROST)...
+Error posting batch file observations_0001.json for datastream BA-PENISOLA SALENTINA-UGENTO-PG09: Batch upload incomplete for BA-PENISOLA SALENTINA-UGENTO-PG09 (datastream 3650727605), file observations_0001.json: inserted 0 of 1000 observations
+  [pool-1-thread-11] Finished datastream 7/1097: BA-PENISOLA SALENTINA-UGENTO-PG09 in 63287 ms
+  Batch verify: 0/1000 observations visible for datastream 3671050164 (still waiting on FROST)...
+Error posting batch file observations_0001.json for datastream BA-OFANTO-MONTICCHIO BAGNI-TGMIN09: Batch upload incomplete for BA-OFANTO-MONTICCHIO BAGNI-TGMIN09 (datastream 3671050164), file observations_0001.json: inserted 0 of 1000 observations
+  [pool-1-thread-8] Finished datastream 8/1097: BA-OFANTO-MONTICCHIO BAGNI-TGMIN09 in 63403 ms
+  Batch verify: 0/1000 observations visible for datastream 3339244642 (still waiting on FROST)...
+Error posting batch file observations_0001.json for datastream BO-BACINI MINORI E ZONA DI PIANURA TRA USO E MARECCHIA-SANT'ARCANGELO DI ROMAGNA-PG09: Batch upload incomplete for BO-BACINI MINORI E ZONA DI PIANURA TRA USO E MARECCHIA-SANT'ARCANGELO DI ROMAGNA-PG09 (datastream 3339244642), file observations_0001.json: inserted 0 of 1000 observations
+  [pool-1-thread-3] Finished datastream 9/1097: BO-BACINI MINORI E ZONA DI PIANURA TRA USO E MARECCHIA-SANT'ARCANGELO DI ROMAGNA-PG09 in 63431 ms
+  Batch verify: 0/1000 observations visible for datastream 3553209180 (still waiting on FROST)...
+Error posting batch file observations_0001.json for datastream BO-METAURO-MONTELABREVE-PG09: Batch upload incomplete for BO-METAURO-MONTELABREVE-PG09 (datastream 3553209180), file observations_0001.json: inserted 0 of 1000 observations
+  [pool-1-thread-1] Finished datastream 10/1097: BO-METAURO-MONTELABREVE-PG09 in 63508 ms
+Error posting batch file observations_0001.json for datastream BA-OFANTO-MONTICCHIO BAGNI-TGMAX09: sleep interrupted
+Error posting batch file observations_0001.json for datastream BO-SAVIO-TERZO DI CARNAIO-PG09: sleep interrupted
+Error posting batch file observations_0001.json for datastream BA-OFANTO-MONTICCHIO BAGNI-PG09: sleep interrupted
+Error posting batch file observations_0001.json for datastream BA-OFANTO-CASTEL LAGOPESOLE-PG09: sleep interrupted
+Datastream observation upload failed for BA-OFANTO-MONTICCHIO BAGNI-PG09: sleep interrupted
+  [pool-1-thread-9] Finished datastream 11/1097: BA-OFANTO-MONTICCHIO BAGNI-PG09 in 63509 ms
+Datastream observation upload failed for BA-OFANTO-CASTEL LAGOPESOLE-PG09: sleep interrupted
+Error posting batch file observations_0001.json for datastream BA-LAGO SALSO - LAGO SALPI - PALUDI DI CELENTANO-MASSERIA FEUDO DELLA PAGLIA-PG09: sleep interrupted
+Datastream observation upload failed for BA-LAGO SALSO - LAGO SALPI - PALUDI DI CELENTANO-MASSERIA FEUDO DELLA PAGLIA-PG09: sleep interrupted
+  [pool-1-thread-13] Finished datastream 12/1097: BA-OFANTO-CASTEL LAGOPESOLE-PG09 in 63507 ms
+  [pool-1-thread-16] Finished datastream 13/1097: BA-LAGO SALSO - LAGO SALPI - PALUDI DI CELENTANO-MASSERIA FEUDO DELLA PAGLIA-PG09 in 63505 ms
+Datastream observation upload failed for BA-OFANTO-MONTICCHIO BAGNI-TGMAX09: sleep interrupted
+Error posting batch file observations_0001.json for datastream BO-BACINI MINORI TRA ESINO E MUSONE-TORRETTE-PG09: sleep interrupted
+Datastream observation upload failed for BO-BACINI MINORI TRA ESINO E MUSONE-TORRETTE-PG09: sleep interrupted
+Datastream observation upload failed for BO-SAVIO-TERZO DI CARNAIO-PG09: sleep interrupted
+  [pool-1-thread-6] Finished datastream 14/1097: BO-BACINI MINORI TRA ESINO E MUSONE-TORRETTE-PG09 in 63511 ms
+  [pool-1-thread-4] Finished datastream 15/1097: BO-SAVIO-TERZO DI CARNAIO-PG09 in 63512 ms
+  [pool-1-thread-10] Finished datastream 16/1097: BA-OFANTO-MONTICCHIO BAGNI-TGMAX09 in 63510 ms
+
+================================================================================
+ FATAL: FROST batch upload incomplete — stopping ingestion
+================================================================================
+ Datastream : BO-RENO-BARGI-PG09 (id 3826280644)
+ Batch file : observations_0001.json
+ Inserted   : 0 / 731 observations
+
+ FROST accepted the batch (HTTP 200) but not all observations were persisted.
+ Check the FROST server logs for messages such as:
+   JsonBatchProcessor - Failed to parse json
+
+ To increase FROST logging, restart the FROST stack with e.g.:
+   FROST_LL=DEBUG FROST_LL_service=DEBUG docker compose -f docker-compose-frost.yml up -d
+
+================================================================================
+
+Ended at 2026-07-22T08:09:09.466885357 UTC
+
+================================================================================
+ FATAL: FROST batch upload incomplete — stopping ingestion
+Duration: 00:01:17.724
+================================================================================
+ Datastream : BO-RENO-BARGI-PG09 (id 3826280644)
+ Batch file : observations_0001.json
+ Inserted   : 0 / 731 observations
+
+ FROST accepted the batch (HTTP 200) but not all observations were persisted.
+ Check the FROST server logs for messages such as:
+   JsonBatchProcessor - Failed to parse json
+
+ To increase FROST logging, restart the FROST stack with e.g.:
+   FROST_LL=DEBUG FROST_LL_service=DEBUG docker compose -f docker-compose-frost.yml up -d
+
+================================================================================
+
