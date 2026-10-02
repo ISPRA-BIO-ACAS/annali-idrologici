@@ -18,13 +18,16 @@
 package eu.flora.essi.ingestor.annals;
 
 import java.io.BufferedReader;
+import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.PushbackInputStream;
 import java.io.Reader;
+import java.io.StringReader;
 import java.io.Writer;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -35,10 +38,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashSet;
-import java.util.LinkedHashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
+import java.util.PriorityQueue;
 import java.util.Set;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
@@ -66,6 +69,17 @@ public final class AnnalsDataPreparer {
 	    "GIORNO");
 
     private static final List<String> NUMERIC_SORT_FIELDS = Arrays.asList("ANNO", "MESE", "GIORNO");
+
+    /** Rows kept on the heap for one sorted run. Sized from the max heap so large CSVs spill to disk. */
+    private static final int MIN_SORT_CHUNK_ROWS = 2_000;
+
+    private static final int MAX_SORT_CHUNK_ROWS = 100_000;
+
+    /** Object overhead of a parsed row (string array plus column values), used only to size chunks. */
+    private static final int ESTIMATED_ROW_BYTES = 2_048;
+
+    /** Open files per merge pass. Further runs are merged in batches so large inputs stay under the fd limit. */
+    private static final int MAX_MERGE_FAN_IN = 32;
 
     private AnnalsDataPreparer() {
     }
@@ -222,64 +236,245 @@ public final class AnnalsDataPreparer {
     }
 
     private static boolean sortObservationCsv(Path csvPath) throws IOException {
-	char delimiter;
-	try (BufferedReader headerReader = new BufferedReader(bomAwareReader(csvPath))) {
-	    String headerLine = headerReader.readLine();
-	    if (headerLine == null) {
+	return sortObservationCsv(csvPath, sortChunkRows());
+    }
+
+    /**
+     * Sorts an observation CSV by {@link #SORT_FIELDS}. Rows are sorted in chunks and merged from disk so the
+     * whole file is never held on the heap.
+     */
+    private static boolean sortObservationCsv(Path csvPath, int chunkRows) throws IOException {
+	if (chunkRows < 1) {
+	    throw new IllegalArgumentException("chunkRows must be positive");
+	}
+
+	Path directory = csvPath.toAbsolutePath().getParent();
+	if (directory == null) {
+	    throw new IOException("Cannot sort a CSV without a parent directory: " + csvPath);
+	}
+
+	List<Path> runs = new ArrayList<>();
+	Path sortedPath = null;
+	try (BufferedReader buffered = new BufferedReader(bomAwareReader(csvPath))) {
+	    String headerLine = buffered.readLine();
+	    if (headerLine == null || headerLine.isBlank()) {
 		return false;
 	    }
-	    delimiter = detectDelimiter(headerLine);
-	}
+	    char delimiter = detectDelimiter(headerLine);
+	    List<String> headers = parseHeader(headerLine, delimiter);
+	    if (headers.isEmpty()) {
+		return false;
+	    }
 
-	CSVFormat inputFormat = CSVFormat.DEFAULT.builder()
-		.setDelimiter(delimiter)
-		.setHeader()
-		.setSkipHeaderRecord(true)
-		.setTrim(true)
-		.build();
+	    System.out.println("Sorting: " + csvPath.getFileName() + " (" + formatSize(Files.size(csvPath)) + ", chunk "
+		    + chunkRows + " rows)");
 
-	List<String> headers = new ArrayList<>();
-	List<Map<String, String>> rows = new ArrayList<>();
-
-	try (Reader reader = bomAwareReader(csvPath);
-		CSVParser parser = inputFormat.parse(reader)) {
-	    headers = new ArrayList<>(parser.getHeaderNames());
-	    for (CSVRecord record : parser) {
-		Map<String, String> row = new LinkedHashMap<>();
-		for (String header : headers) {
-		    row.put(header, record.isMapped(header) ? record.get(header) : "");
+	    Comparator<String[]> comparator = observationRowComparator(sortColumnIndexes(headers));
+	    int width = headers.size();
+	    try (CSVParser parser = bodyFormat(delimiter).parse(buffered)) {
+		List<String[]> chunk = new ArrayList<>(Math.min(chunkRows, 10_000));
+		for (CSVRecord record : parser) {
+		    chunk.add(toValues(record, width));
+		    if (chunk.size() >= chunkRows) {
+			runs.add(writeSortedRun(chunk, delimiter, directory, comparator));
+			if (runs.size() % 10 == 0) {
+			    System.out.println("  wrote " + runs.size() + " runs");
+			}
+			chunk.clear();
+		    }
 		}
-		rows.add(row);
+		if (!chunk.isEmpty()) {
+		    runs.add(writeSortedRun(chunk, delimiter, directory, comparator));
+		}
+	    }
+	    if (!runs.isEmpty()) {
+		System.out.println("  wrote " + runs.size() + " sorted runs");
+	    }
+
+	    if (runs.isEmpty()) {
+		return false;
+	    }
+
+	    sortedPath = Files.createTempFile(directory, ".annals-sorted-", ".csv");
+	    externalMerge(runs, sortedPath, headers, delimiter, comparator);
+	    runs.clear();
+	    replaceFile(sortedPath, csvPath);
+	    sortedPath = null;
+	    return true;
+	} finally {
+	    for (Path run : runs) {
+		Files.deleteIfExists(run);
+	    }
+	    if (sortedPath != null) {
+		Files.deleteIfExists(sortedPath);
 	    }
 	}
+    }
 
-	if (rows.isEmpty()) {
-	    return false;
+    private static int sortChunkRows() {
+	long budgetBytes = Math.max(16L * 1024 * 1024, Runtime.getRuntime().maxMemory() / 10);
+	long rows = budgetBytes / ESTIMATED_ROW_BYTES;
+	return (int) Math.max(MIN_SORT_CHUNK_ROWS, Math.min(MAX_SORT_CHUNK_ROWS, rows));
+    }
+
+    private static String formatSize(long bytes) {
+	if (bytes >= 1024 * 1024) {
+	    return (bytes / (1024 * 1024)) + " MiB";
 	}
+	return Math.max(1, bytes / 1024) + " KiB";
+    }
 
-	rows.sort(observationRowComparator());
+    private static List<String> parseHeader(String headerLine, char delimiter) throws IOException {
+	try (CSVParser parser = bodyFormat(delimiter).parse(new StringReader(headerLine))) {
+	    Iterator<CSVRecord> records = parser.iterator();
+	    if (!records.hasNext()) {
+		return List.of();
+	    }
+	    CSVRecord record = records.next();
+	    return new ArrayList<>(Arrays.asList(toValues(record, record.size())));
+	}
+    }
 
-	Path sortedPath = csvPath.resolveSibling(csvPath.getFileName().toString().replaceFirst("(?i)\\.csv$", "-sorted.csv"));
-	CSVFormat outputFormat = CSVFormat.DEFAULT.builder()
+    private static String[] toValues(CSVRecord record, int width) {
+	String[] values = new String[width];
+	int limit = Math.min(width, record.size());
+	for (int i = 0; i < limit; i++) {
+	    String value = record.get(i);
+	    values[i] = value == null ? "" : value;
+	}
+	for (int i = limit; i < width; i++) {
+	    values[i] = "";
+	}
+	return values;
+    }
+
+    private static int[] sortColumnIndexes(List<String> headers) {
+	int[] indexes = new int[SORT_FIELDS.size()];
+	for (int i = 0; i < SORT_FIELDS.size(); i++) {
+	    indexes[i] = headers.indexOf(SORT_FIELDS.get(i));
+	}
+	return indexes;
+    }
+
+    private static Path writeSortedRun(List<String[]> rows, char delimiter, Path directory, Comparator<String[]> comparator)
+	    throws IOException {
+	rows.sort(comparator);
+	Path run = Files.createTempFile(directory, ".annals-sort-", ".csv");
+	try {
+	    try (Writer writer = Files.newBufferedWriter(run, StandardCharsets.UTF_8);
+		    CSVPrinter printer = new CSVPrinter(writer, outputFormat(delimiter))) {
+		for (String[] row : rows) {
+		    printer.printRecord((Object[]) row);
+		}
+	    }
+	    return run;
+	} catch (IOException e) {
+	    Files.deleteIfExists(run);
+	    throw e;
+	}
+    }
+
+    private static void externalMerge(List<Path> runs, Path output, List<String> headers, char delimiter,
+	    Comparator<String[]> comparator) throws IOException {
+	List<Path> owned = new ArrayList<>(runs);
+	try {
+	    List<Path> current = new ArrayList<>(runs);
+	    while (current.size() > MAX_MERGE_FAN_IN) {
+		System.out.println("  merging " + current.size() + " runs");
+		List<Path> next = new ArrayList<>();
+		for (int offset = 0; offset < current.size(); offset += MAX_MERGE_FAN_IN) {
+		    int end = Math.min(offset + MAX_MERGE_FAN_IN, current.size());
+		    List<Path> batch = new ArrayList<>(current.subList(offset, end));
+		    if (batch.size() == 1) {
+			next.add(batch.get(0));
+			continue;
+		    }
+		    Path merged = Files.createTempFile(output.getParent(), ".annals-merge-", ".csv");
+		    owned.add(merged);
+		    mergeRuns(batch, merged, null, headers.size(), delimiter, comparator);
+		    deleteRuns(batch, owned);
+		    next.add(merged);
+		}
+		current = next;
+	    }
+	    if (current.size() > 1) {
+		System.out.println("  merging " + current.size() + " runs");
+	    }
+	    mergeRuns(current, output, headers, headers.size(), delimiter, comparator);
+	    deleteRuns(current, owned);
+	} finally {
+	    deleteRuns(owned, null);
+	}
+    }
+
+    private static void deleteRuns(List<Path> paths, List<Path> owned) throws IOException {
+	for (Path path : paths) {
+	    Files.deleteIfExists(path);
+	    if (owned != null) {
+		owned.remove(path);
+	    }
+	}
+    }
+
+    private static void mergeRuns(List<Path> runs, Path output, List<String> headers, int width, char delimiter,
+	    Comparator<String[]> comparator) throws IOException {
+	List<RunCursor> opened = new ArrayList<>();
+	try {
+	    PriorityQueue<RunCursor> queue = new PriorityQueue<>(Math.max(1, runs.size()), (left, right) -> {
+		int cmp = comparator.compare(left.row, right.row);
+		if (cmp != 0) {
+		    return cmp;
+		}
+		return Integer.compare(left.runIndex, right.runIndex);
+	    });
+	    for (int i = 0; i < runs.size(); i++) {
+		RunCursor cursor = RunCursor.open(runs.get(i), delimiter, width, i);
+		opened.add(cursor);
+		if (cursor.advance()) {
+		    queue.add(cursor);
+		}
+	    }
+
+	    try (Writer writer = Files.newBufferedWriter(output, StandardCharsets.UTF_8);
+		    CSVPrinter printer = new CSVPrinter(writer, outputFormat(delimiter))) {
+		if (headers != null) {
+		    printer.printRecord(headers);
+		}
+		while (!queue.isEmpty()) {
+		    RunCursor cursor = queue.poll();
+		    printer.printRecord((Object[]) cursor.row);
+		    if (cursor.advance()) {
+			queue.add(cursor);
+		    }
+		}
+	    }
+	} finally {
+	    for (RunCursor cursor : opened) {
+		cursor.close();
+	    }
+	}
+    }
+
+    private static void replaceFile(Path sortedPath, Path csvPath) throws IOException {
+	try {
+	    Files.move(sortedPath, csvPath, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+	} catch (AtomicMoveNotSupportedException e) {
+	    Files.move(sortedPath, csvPath, StandardCopyOption.REPLACE_EXISTING);
+	}
+    }
+
+    private static CSVFormat bodyFormat(char delimiter) {
+	return CSVFormat.DEFAULT.builder()
+		.setDelimiter(delimiter)
+		.setTrim(true)
+		.build();
+    }
+
+    private static CSVFormat outputFormat(char delimiter) {
+	return CSVFormat.DEFAULT.builder()
 		.setDelimiter(delimiter)
 		.setRecordSeparator(System.lineSeparator())
 		.build();
-
-	try (Writer writer = Files.newBufferedWriter(sortedPath, StandardCharsets.UTF_8);
-		CSVPrinter printer = new CSVPrinter(writer, outputFormat)) {
-	    printer.printRecord(headers);
-	    for (Map<String, String> row : rows) {
-		List<String> values = new ArrayList<>();
-		for (String header : headers) {
-		    values.add(row.getOrDefault(header, ""));
-		}
-		printer.printRecord(values);
-	    }
-	}
-
-	Files.deleteIfExists(csvPath);
-	Files.move(sortedPath, csvPath, StandardCopyOption.REPLACE_EXISTING);
-	return true;
     }
 
     private static Reader bomAwareReader(Path path) throws IOException {
@@ -317,23 +512,71 @@ public final class AnnalsDataPreparer {
 	return count;
     }
 
-    private static Comparator<Map<String, String>> observationRowComparator() {
+    private static Comparator<String[]> observationRowComparator(int[] columns) {
+	boolean[] numeric = new boolean[columns.length];
+	for (int i = 0; i < columns.length; i++) {
+	    numeric[i] = NUMERIC_SORT_FIELDS.contains(SORT_FIELDS.get(i));
+	}
 	return (left, right) -> {
-	    for (String field : SORT_FIELDS) {
-		String leftValue = left.getOrDefault(field, "");
-		String rightValue = right.getOrDefault(field, "");
-		int cmp;
-		if (NUMERIC_SORT_FIELDS.contains(field)) {
-		    cmp = Integer.compare(parseNumericSortKey(leftValue), parseNumericSortKey(rightValue));
-		} else {
-		    cmp = leftValue.compareTo(rightValue);
-		}
+	    for (int i = 0; i < columns.length; i++) {
+		int column = columns[i];
+		String leftValue = column < 0 || column >= left.length ? "" : left[column];
+		String rightValue = column < 0 || column >= right.length ? "" : right[column];
+		int cmp = numeric[i]
+			? Integer.compare(parseNumericSortKey(leftValue), parseNumericSortKey(rightValue))
+			: leftValue.compareTo(rightValue);
 		if (cmp != 0) {
 		    return cmp;
 		}
 	    }
 	    return 0;
 	};
+    }
+
+    /**
+     * One sorted run opened for a k-way merge. {@code runIndex} keeps the original file order when sort keys tie.
+     */
+    private static final class RunCursor implements Closeable {
+	private final CSVParser parser;
+	private final Iterator<CSVRecord> records;
+	private final int width;
+	private final int runIndex;
+	private String[] row;
+	private boolean closed;
+
+	private RunCursor(CSVParser parser, int width, int runIndex) {
+	    this.parser = parser;
+	    this.records = parser.iterator();
+	    this.width = width;
+	    this.runIndex = runIndex;
+	}
+
+	static RunCursor open(Path path, char delimiter, int width, int runIndex) throws IOException {
+	    Reader reader = Files.newBufferedReader(path, StandardCharsets.UTF_8);
+	    try {
+		return new RunCursor(bodyFormat(delimiter).parse(reader), width, runIndex);
+	    } catch (IOException | RuntimeException e) {
+		reader.close();
+		throw e;
+	    }
+	}
+
+	boolean advance() {
+	    if (!records.hasNext()) {
+		row = null;
+		return false;
+	    }
+	    row = toValues(records.next(), width);
+	    return true;
+	}
+
+	@Override
+	public void close() throws IOException {
+	    if (!closed) {
+		closed = true;
+		parser.close();
+	    }
+	}
     }
 
     private static int parseNumericSortKey(String value) {
