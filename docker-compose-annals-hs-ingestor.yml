@@ -1,4 +1,4 @@
-# Annals HydroServer ingestor: load prepared CSV data into HydroServer.
+# Yearbooks HydroServer ingestor: load prepared CSV data into HydroServer.
 #
 # Prerequisite: prepared data under ./data/processed/:
 #   docker compose -f docker-compose-annals-prepare.yml up --build

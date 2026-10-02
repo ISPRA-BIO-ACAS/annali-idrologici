@@ -22,9 +22,11 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -35,7 +37,10 @@ import org.json.JSONObject;
  * Collects data first (request logs may appear during collection), then prints a clean summary:
  * entity counts, Locations bbox and elevation, Datastream temporal coverage / empty-thin stats,
  * property tallies ({@code aggregationPeriod}, {@code aggregationStatistic}, {@code referenceTimeOfDay},
- * units, observation types), and ObservedProperties with observation counts.
+ * units, observation types), ObservedProperties with observation counts, and per-compartment
+ * stats grouped by the {@code district} property (distinct {@code watershed} basins, spatial and
+ * elevation extent from Thing locations, temporal extent from Datastream {@code phenomenonTime},
+ * and counts of Things, Datastreams, and Observations).
  * <p>
  * Usage:
  * {@code java ... STAEndpointStats <frostBaseUrl>
@@ -174,6 +179,8 @@ public class STAEndpointStats {
 	    report.elevationMean = sum / elevations.size();
 	}
 
+	collectCompartmentsFromThings(client, report);
+
 	List<Duration> durations = new ArrayList<>();
 	List<DatastreamRef> datastreamRefs = new ArrayList<>();
 	PagedResult<Datastream> dsPage = client.getDatastreams();
@@ -188,6 +195,13 @@ public class STAEndpointStats {
 		tallyValue(report.observationTypes, blankToMissing(ds.getObservationType()));
 		tallyValue(report.unitsOfMeasurement, unitKey(ds));
 
+		CompartmentStats compartment = compartment(report, propertyText(ds.getProperties(), "district"));
+		compartment.datastreamCount++;
+		String watershed = propertyText(ds.getProperties(), "watershed");
+		if (watershed != null) {
+		    compartment.watersheds.add(watershed);
+		}
+
 		String phenomenonTime = ds.getPhenomenonTime();
 		if (phenomenonTime == null || phenomenonTime.isBlank()) {
 		    report.missingPhenomenonTime++;
@@ -198,6 +212,13 @@ public class STAEndpointStats {
 		    report.unparseablePhenomenonTime++;
 		    continue;
 		}
+		if (compartment.temporalMin == null || interval.start().isBefore(compartment.temporalMin)) {
+		    compartment.temporalMin = interval.start();
+		}
+		if (compartment.temporalMax == null || interval.end().isAfter(compartment.temporalMax)) {
+		    compartment.temporalMax = interval.end();
+		}
+		compartment.datastreamsWithPhenomenonTime++;
 		Duration duration = interval.duration();
 		if (duration.isZero()) {
 		    report.zeroLengthPhenomenonTime++;
@@ -226,6 +247,8 @@ public class STAEndpointStats {
 	if (!durations.isEmpty()) {
 	    report.median = medianDuration(durations);
 	}
+
+	collectCompartmentObservationCounts(client, report, skipObservationsCount);
 
 	if (!skipObservationsPerDatastream && !datastreamRefs.isEmpty()) {
 	    List<Long> obsCounts = new ArrayList<>(datastreamRefs.size());
@@ -297,6 +320,109 @@ public class STAEndpointStats {
 	}
 
 	return report;
+    }
+
+    private static void collectCompartmentsFromThings(FROSTClient client, StatsReport report) {
+	try {
+	    PagedResult<Thing> thingPage = client.get("Things", null, "Locations", Thing.class);
+	    while (true) {
+		for (Thing thing : thingPage.getItems()) {
+		    CompartmentStats compartment = compartment(report, propertyText(thing.getProperties(), "district"));
+		    compartment.thingCount++;
+		    String watershed = propertyText(thing.getProperties(), "watershed");
+		    if (watershed != null) {
+			compartment.watersheds.add(watershed);
+		    } else {
+			compartment.thingsWithoutWatershed++;
+		    }
+		    List<Location> locations = thing.getExpandedLocations();
+		    if (locations.isEmpty()) {
+			compartment.thingsWithoutLocation++;
+			continue;
+		    }
+		    boolean thingHasPoint = false;
+		    for (Location location : locations) {
+			List<double[]> locationPoints = new ArrayList<>();
+			List<Double> locationElevations = new ArrayList<>();
+			collectCoordinates(location.getLocation(), locationPoints, locationElevations);
+			for (double[] point : locationPoints) {
+			    accumulatePoint(compartment, point[0], point[1]);
+			    thingHasPoint = true;
+			}
+			if (locationElevations.isEmpty()) {
+			    compartment.locationsWithoutElevation++;
+			} else {
+			    for (double elevation : locationElevations) {
+				compartment.elevationCount++;
+				compartment.elevationMin = Math.min(compartment.elevationMin, elevation);
+				compartment.elevationMax = Math.max(compartment.elevationMax, elevation);
+				compartment.hasElevation = true;
+			    }
+			}
+		    }
+		    if (!thingHasPoint) {
+			compartment.thingsWithoutLocation++;
+		    }
+		}
+		if (!thingPage.hasNext()) {
+		    break;
+		}
+		thingPage = client.getThingsByNextLink(thingPage.getNextLink());
+	    }
+	} catch (Exception e) {
+	    report.compartmentError = e.getMessage();
+	}
+    }
+
+    private static void collectCompartmentObservationCounts(FROSTClient client, StatsReport report,
+	    boolean skipObservationsCount) {
+	for (CompartmentStats compartment : report.compartments.values()) {
+	    if (skipObservationsCount) {
+		compartment.observationsSkipped = true;
+		continue;
+	    }
+	    try {
+		String filter;
+		if (MISSING.equals(compartment.district)) {
+		    filter = "Datastream/properties/district eq null";
+		} else {
+		    filter = "Datastream/properties/district eq " + FilterBuilder.encodeString(compartment.district);
+		}
+		compartment.observationCount = client.count(
+			"Observations?$filter=" + FilterBuilder.urlEncode(filter));
+	    } catch (Exception e) {
+		compartment.observationCountError = e.getMessage();
+	    }
+	}
+    }
+
+    private static CompartmentStats compartment(StatsReport report, String district) {
+	String key = district == null ? MISSING : district;
+	return report.compartments.computeIfAbsent(key, CompartmentStats::new);
+    }
+
+    private static String propertyText(JSONObject properties, String key) {
+	if (properties == null || !properties.has(key) || properties.isNull(key)) {
+	    return null;
+	}
+	String text = String.valueOf(properties.get(key)).trim();
+	return text.isEmpty() ? null : text;
+    }
+
+    private static void accumulatePoint(CompartmentStats compartment, double lon, double lat) {
+	if (!compartment.hasBbox) {
+	    compartment.bboxW = lon;
+	    compartment.bboxE = lon;
+	    compartment.bboxS = lat;
+	    compartment.bboxN = lat;
+	    compartment.hasBbox = true;
+	} else {
+	    compartment.bboxW = Math.min(compartment.bboxW, lon);
+	    compartment.bboxE = Math.max(compartment.bboxE, lon);
+	    compartment.bboxS = Math.min(compartment.bboxS, lat);
+	    compartment.bboxN = Math.max(compartment.bboxN, lat);
+	}
+	compartment.locationPointCount++;
     }
 
     private static String unitKey(Datastream ds) {
@@ -470,11 +596,77 @@ public class STAEndpointStats {
 		    allObservationCountsKnown = false;
 		}
 	    }
-	    if (allObservationCountsKnown) {
+	if (allObservationCountsKnown) {
 		System.out.printf("  Sum of observations across ObservedProperties: %,d%n", totalObservations);
 	    }
 	}
+
+	printCompartments(report);
 	System.out.println();
+    }
+
+    private static void printCompartments(StatsReport report) {
+	printSection("Compartments (district)");
+	if (report.compartmentError != null) {
+	    System.out.println("  ERROR reading Things: " + report.compartmentError);
+	}
+	if (report.compartments.isEmpty()) {
+	    System.out.println("  No Things or Datastreams found.");
+	    return;
+	}
+	List<CompartmentStats> compartments = new ArrayList<>(report.compartments.values());
+	compartments.sort(Comparator.comparing(stats -> stats.district, String.CASE_INSENSITIVE_ORDER));
+	System.out.printf("  Total: %,d%n", compartments.size());
+	for (CompartmentStats stats : compartments) {
+	    System.out.println();
+	    System.out.println("  " + stats.district);
+	    System.out.printf("    Things: %,d%n", stats.thingCount);
+	    System.out.printf("    Distinct basins (watershed): %,d%n", stats.watersheds.size());
+	    if (stats.thingsWithoutWatershed > 0) {
+		System.out.printf("    Things without watershed: %,d%n", stats.thingsWithoutWatershed);
+	    }
+	    System.out.printf("    Datastreams: %,d%n", stats.datastreamCount);
+	    if (stats.observationsSkipped) {
+		System.out.println("    Observations: (skipped; omit --skip-observations-count to enable)");
+	    } else if (stats.observationCountError != null) {
+		System.out.println("    Observations: ERROR: " + stats.observationCountError);
+	    } else if (stats.observationCount != null) {
+		System.out.printf("    Observations: %,d%n", stats.observationCount);
+	    }
+	    System.out.println("    Spatial extent (N-W-S-E):");
+	    if (!stats.hasBbox) {
+		System.out.println("      No Location geometries found.");
+		if (stats.thingsWithoutLocation > 0) {
+		    System.out.printf("      Things without coordinates: %,d%n", stats.thingsWithoutLocation);
+		}
+	    } else {
+		System.out.printf("      Locations with coordinates: %,d%n", stats.locationPointCount);
+		System.out.printf("      N (max lat): %.6f%n", stats.bboxN);
+		System.out.printf("      W (min lon): %.6f%n", stats.bboxW);
+		System.out.printf("      S (min lat): %.6f%n", stats.bboxS);
+		System.out.printf("      E (max lon): %.6f%n", stats.bboxE);
+	    }
+	    System.out.println("    Elevation extent:");
+	    if (!stats.hasElevation) {
+		System.out.println("      No elevations found.");
+	    } else {
+		System.out.printf("      Elevations present: %,d%n", stats.elevationCount);
+		System.out.printf("      Min: %.3f%n", stats.elevationMin);
+		System.out.printf("      Max: %.3f%n", stats.elevationMax);
+		if (stats.locationsWithoutElevation > 0) {
+		    System.out.printf("      Locations without elevation: %,d%n", stats.locationsWithoutElevation);
+		}
+	    }
+	    System.out.println("    Temporal extent:");
+	    if (stats.temporalMin == null || stats.temporalMax == null) {
+		System.out.println("      No phenomenonTime intervals found.");
+	    } else {
+		Duration span = Duration.between(stats.temporalMin, stats.temporalMax);
+		System.out.println("      " + stats.temporalMin + " / " + stats.temporalMax
+			+ " (" + formatDuration(span) + ")");
+		System.out.printf("      Datastreams with phenomenonTime: %,d%n", stats.datastreamsWithPhenomenonTime);
+	    }
+	}
     }
 
     private static void printPropertyTally(String propertyName, Map<String, Long> tallies, int total) {
@@ -749,6 +941,40 @@ public class STAEndpointStats {
 	final Map<String, Long> observationTypes = new HashMap<>();
 	final List<ObservedProperty> observedProperties = new ArrayList<>();
 	final List<ObservedPropertyStats> observedPropertyStats = new ArrayList<>();
+	final Map<String, CompartmentStats> compartments = new LinkedHashMap<>();
+	String compartmentError;
+    }
+
+    private static final String MISSING = "(missing)";
+
+    private static final class CompartmentStats {
+	final String district;
+	int thingCount;
+	final Set<String> watersheds = new HashSet<>();
+	int thingsWithoutWatershed;
+	int thingsWithoutLocation;
+	int datastreamCount;
+	int datastreamsWithPhenomenonTime;
+	Long observationCount;
+	String observationCountError;
+	boolean observationsSkipped;
+	boolean hasBbox;
+	int locationPointCount;
+	double bboxN;
+	double bboxW;
+	double bboxS;
+	double bboxE;
+	boolean hasElevation;
+	int elevationCount;
+	int locationsWithoutElevation;
+	double elevationMin = Double.POSITIVE_INFINITY;
+	double elevationMax = Double.NEGATIVE_INFINITY;
+	Instant temporalMin;
+	Instant temporalMax;
+
+	CompartmentStats(String district) {
+	    this.district = district;
+	}
     }
 
     private static final class ObservedPropertyStats {

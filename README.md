@@ -1,8 +1,8 @@
-# Italian Hydrological Annals Interoperable Dataset
+# Italian Hydrological Yearbooks Interoperable Dataset
 
 ## Overview
 
-This repository contains the digitized and quality-controlled database of the historical **Italian Hydrological Annals** (*Annali Idrologici Italiani*), together with the Docker-based infrastructure required to publish the data through **HydroServer** and **FROST Server**.
+This repository contains the digitized and quality-controlled database of the historical **Italian Hydrological Yearbooks** (*Annali Idrologici Italiani*), together with the Docker-based infrastructure required to publish the data through **HydroServer** and **FROST Server**.
 
 The database was produced by digitizing the original printed volumes of the *Annali Idrologici Italiani* and performing quality control procedures prior to publication.
 
@@ -12,15 +12,15 @@ A linked Zenodo publication is made available, for enabling data preservation an
 
 A scientific publication is under preparation to document this work.
 
-![HIS-Central portal showing italian hydrological annals](images/his-central-annali.png)
+![HIS-Central portal showing italian hydrological yearbooks](images/his-central-annali.png)
 
 ## Quickstart
 
-The repository has compressed Annals data under `data/`, while generated processed data is written to `data/processed/`; mapped STA JSON for FROST is written to `data/processed/sta/`. These folders are not committed to Git.
+The repository has compressed Yearbooks data under `data/`, while generated processed data is written to `data/processed/`; mapped STA JSON for FROST is written to `data/processed/sta/`. These folders are not committed to Git.
 
 ### Bring your own FROST (single container)
 
-If you already run a FROST Server, you can download the Annals data from GitHub, prepare it, map it to SensorThings, and upload it with one command. Build the image from this repository (or pull it from Docker Hub once published):
+If you already run a FROST Server, you can download the Yearbooks data from GitHub, prepare it, map it to SensorThings, and upload it with one command. Build the image from this repository (or pull it from Docker Hub once published):
 
 ```bash
 docker build -t essilab/annals-frost-ingestor:latest ./ingestor-frost
@@ -63,6 +63,22 @@ docker compose -f docker-compose-annals-frost-ingestor.yml up --build
 ```
 
 The FROST ingestor uploads `data/processed/sta/` to FROST on port **8082**. The FROST API is available at `http://localhost:8082/FROST-Server/v1.1/`.
+
+To print summary statistics for that local endpoint (entity counts, location bounding box and elevation, datastream time coverage, observed properties, and per-compartment stats by district), from `ingestor-frost`:
+
+```bash
+mvn -q exec:java -Dexec.mainClass="eu.flora.essi.frost.STAEndpointStats" \
+  -Dexec.args="http://localhost:8082/FROST-Server/v1.1/"
+```
+
+Optional flags: `--skip-observations-count`, `--skip-observations-per-datastream`, `--no-log-requests`. More detail is in [`ingestor-frost/README.md`](ingestor-frost/README.md).
+
+To ingest into a **different** FROST server, set `FROST_BASE_URL` to that server's SensorThings root (it must include `/FROST-Server/v1.1/`):
+
+```bash
+FROST_BASE_URL=https://my-frost.example.com/FROST-Server/v1.1/ \
+docker compose -f docker-compose-annals-frost-ingestor.yml up --build
+```
 
 To reset the database and start fresh:
 
@@ -138,15 +154,15 @@ This repository uses **two licenses**, depending on what you use:
 
 | Content | Path | License |
 |---------|------|---------|
-| **Dataset** (Annals CSV/ZIP files and reference tables) | `data/` | [Creative Commons Attribution 4.0 International (CC BY 4.0)](LICENSE) |
+| **Dataset** (Yearbooks CSV/ZIP files and reference tables) | `data/` | [Creative Commons Attribution 4.0 International (CC BY 4.0)](LICENSE) |
 | **Software** (ingestors, FROST client, Docker tooling) | `ingestor-frost/`, `ingestor-hydroserver/` | [GNU Affero General Public License v3.0 (AGPL-3.0)](SOFTWARE-LICENSE) |
 
 - The full CC BY 4.0 legal text is in the repository root [`LICENSE`](LICENSE) file and applies to the hydrological **data** under `data/`.
 - **Source code** is licensed under AGPL-3.0; copyright and license notices are in the file headers (see `ingestor-frost/license/AGPL-3-header.txt` and `ingestor-hydroserver/license/AGPL-3-header.txt`).
-- Generated outputs under `data/processed/` are derived from the dataset and ingestor tooling; treat them as dataset derivatives when redistributing the Annals data.
+- Generated outputs under `data/processed/` are derived from the dataset and ingestor tooling; treat them as dataset derivatives when redistributing the Yearbooks data.
 
 When citing or redistributing, follow the license that applies to the part you use (data vs. software).
 
 ## Acknowledgements
 
-The digitization, quality control, and publication of the *Italian Hydrological Annnals Interoperable Dataset* have been carried out by **ISPRA BIO-ACAS**, with the contribution of the repository contributors listed in the citation metadata.
+The digitization, quality control, and publication of the *Italian Hydrological Yearbooks Interoperable Dataset* have been carried out by **ISPRA BIO-ACAS**, with the contribution of the repository contributors listed in the citation metadata.

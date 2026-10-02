@@ -29,8 +29,8 @@ import org.json.JSONObject;
 public class EditorOrganizations extends CSVTable {
 
     public EditorOrganizations(File compartmentFile) throws Exception {
-	super(compartmentFile, new String[] { "SIGLA_ENTE_COMPILATORE", "NOME_ENTE_COMPILATORE", "RUOLO_ENTE_COMPILATORE",
-		"EmailpuntoContatto", "RUOLO_PROGETTO", "GENERAL" }, "SIGLA_ENTE_COMPILATORE");
+	super(compartmentFile, new String[] { "SIGLA_ENTE_COMPILATORE", "NOME_ENTE_COMPILATORE", "Ruolo",
+		"EmailpuntoContatto", "Ruolo_progetto", "general" }, "SIGLA_ENTE_COMPILATORE");
     }
 
     public String getName(String code) {
@@ -38,7 +38,7 @@ public class EditorOrganizations extends CSVTable {
     }
 
     public String getRole(String code) {
-	return super.getRecord(code).get("RUOLO_ENTE_COMPILATORE");
+	return super.getRecord(code).get("Ruolo");
     }
 
     public String getEmail(String code) {
@@ -46,12 +46,12 @@ public class EditorOrganizations extends CSVTable {
     }
 
     public String getRoleInProject(String code) {
-	return super.getRecord(code).get("RUOLO_PROGETTO");
+	return super.getRecord(code).get("Ruolo_progetto");
     }
 
     public boolean isGeneral(String code) {
 	CSVRecord record = super.getRecord(code);
-	String ret = record.get("GENERAL");
+	String ret = record.get("general");
 	if (ret.equalsIgnoreCase("y")) {
 	    return true;
 	} else {

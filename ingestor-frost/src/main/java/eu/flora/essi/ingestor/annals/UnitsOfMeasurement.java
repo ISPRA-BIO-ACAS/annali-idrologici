@@ -19,18 +19,24 @@ package eu.flora.essi.ingestor.annals;
 
 import java.io.File;
 
+import org.apache.commons.csv.CSVRecord;
+
 public class UnitsOfMeasurement extends CSVTable {
 
     public UnitsOfMeasurement(File compartmentFile) throws Exception {
-	super(compartmentFile, new String[] { "SIGLA_STRUMENTO", "UDM", "DESCRIZIONE_UDM" }, "SIGLA_STRUMENTO");
+	super(compartmentFile, new String[] { "UDM", "DESCRIZIONE_UDM" }, "UDM");
     }
 
-    public String getUnitsOfMeasurement(String code) {
-	return super.getRecord(code).get("UDM");
+    public String getUnitsOfMeasurement(String udm) {
+	return super.getRecord(udm).get("UDM");
     }
 
-    public String getUnitsOfMeasurementDescription(String code) {
-	return super.getRecord(code).get("DESCRIZIONE_UDM");
+    public String getUnitsOfMeasurementDescription(String udm) {
+	CSVRecord record = super.getRecord(udm);
+	if (record == null) {
+	    return null;
+	}
+	return record.get("DESCRIZIONE_UDM");
     }
 
 }

@@ -1,10 +1,11 @@
 {
-  "title": "Italian Hydrological Annals Interoperable Dataset",
-  "description": "Digitalized and quality-controlled database of the Italian Hydrological Annals together with the Docker configuration required for publication according to OGC SensorThings API (STA) through HydroServer and FROST.",
+  "title": "Italian Hydrological Yearbooks Interoperable Dataset",
+  "description": "Digitalized and quality-controlled database of the Italian Hydrological Yearbooks together with the Docker configuration required for publication according to OGC SensorThings API (STA) through HydroServer and FROST.",
   "creators": [
     {
       "name": "Lastoria, Barbara",
-      "affiliation": "Istituto Superiore per la Protezione e la Ricerca Ambientale (ISPRA)"
+      "affiliation": "Istituto Superiore per la Protezione e la Ricerca Ambientale (ISPRA)",
+      "orcid": "0009-0006-3139-856X"
     },
     {
       "name": "Casaioli, Marco",
@@ -28,7 +29,7 @@
   ],
   "keywords": [
     "hydrology",
-    "hydrological annals",
+    "hydrological yearbooks",
     "Italy",
     "HydroServer",
     "time series",

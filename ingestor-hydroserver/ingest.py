@@ -1,4 +1,4 @@
-# Annals HydroServer ingestor
+# Yearbooks HydroServer ingestor
 # Copyright (C) 2026 National Research Council of Italy (CNR)/Institute of Technologies and Environmental Intelligence (ITIAm)/ESSI-Lab
 #
 # This program is free software: you can redistribute it and/or modify
@@ -138,7 +138,8 @@ class AnnaliIngestor:
         coords = self._load_coordinates()
         strata = self._load_station_anagraphics(fast=fast)
         tipo_grandezza = self._load_tipo_grandezza()
-        strumenti = self._load_strumenti()
+        tipo_strumento = self._load_tipo_strumento()
+        strumento = self._load_strumento()
         compartimenti = self._load_compartimenti()
         udm_map = self._load_udm()
         flag_quality = self._load_flag_quality()
@@ -187,6 +188,7 @@ class AnnaliIngestor:
                     "ORA": "string",
                     "GRANDEZZA": "string",
                     "FLAG_VALORE": "string",
+                    "QUOTA_STRUMENTO_ANNALE": "string",
                 },
                 converters={
                     "VALORE": lambda s: self._parse_decimal_comma(s),
@@ -230,20 +232,20 @@ class AnnaliIngestor:
                         ruoli,
                         metadato_dati,
                         str(grandezza),
-                        strumenti,
+                        strumento,
                     )
-                    # Calculate UDM from TIPO_STRUMENTO_ANNALE
+                    # Unit symbol comes from the instrument class (TIPO_STRUMENTO), then the name from UNITA_MISURA_UDM
                     udm = None
                     strumento_type = tipo_grandezza.loc[tipo_grandezza["GRANDEZZA"] == grandezza].iloc[0]["SIGLA_STRUMENTO"]
-                    udm_match = udm_map.loc[udm_map["SIGLA_STRUMENTO"] == strumento_type]
-                    if not udm_match.empty and "UDM" in udm_match.columns:
-                            udm = str(udm_match.iloc[0]["UDM"]) 
+                    tipo_match = tipo_strumento.loc[tipo_strumento["SIGLA_STRUMENTO"] == strumento_type]
+                    if not tipo_match.empty and "UDM" in tipo_match.columns and pd.notna(tipo_match.iloc[0]["UDM"]):
+                        udm = str(tipo_match.iloc[0]["UDM"]) 
 
                     if udm is None:
                         logging.warning("Could not determine UDM for station %s, grandezza %s", st_alias, grandezza)
                         continue
 
-                    sensor_uid = self._ensure_sensor(workspace_uid, strumento_type, strumenti)
+                    sensor_uid = self._ensure_sensor(workspace_uid, strumento_type, tipo_strumento)
                     observed_property_uid = self._ensure_observed_property(workspace_uid, grandezza, tipo_grandezza)
                     unit_uid = self._ensure_unit(workspace_uid, udm, udm_map)
 
@@ -301,7 +303,15 @@ class AnnaliIngestor:
                     if not obs_df.empty:
                         if fast:
                             obs_df = obs_df.head(10)
-                        datastream.load_observations(obs_df)
+                        try:
+                            datastream.load_observations(obs_df)
+                        except Exception:
+                            logging.exception(
+                                "Failed to load observations for %s site=%s grandezza=%s; continuing",
+                                data_path.name,
+                                st_alias,
+                                grandezza,
+                            )
                 if fast:
                     break; # only first chunk if fast
 
@@ -315,13 +325,17 @@ class AnnaliIngestor:
                 sep=self.sep,
                 quotechar=self.quotechar,
                 encoding=self.encoding,
-                dtype={"Compartimento": "category", "ALIAS_STAZIONE": "string", "ALIAS_BACINO": "string"},
+                dtype={"ALIAS_STAZIONE": "string", "ALIAS_BACINO": "string"},
                 converters={"X_LONG": self._parse_decimal_comma, "Y_LAT": self._parse_decimal_comma, "Z_MSLM": self._parse_decimal_comma},
             )
+            compartment_col = "COMPARTIMENTO" if "COMPARTIMENTO" in df.columns else "Compartimento"
+            lon_col, lat_col = self._coordinate_columns(df.columns)
             for _, r in df.iterrows():
-                key = SiteKey(str(r["Compartimento"]), str(r["ALIAS_STAZIONE"]), str(r["ALIAS_BACINO"]))
+                key = SiteKey(str(r[compartment_col]), str(r["ALIAS_STAZIONE"]), str(r["ALIAS_BACINO"]))
                 elevation = float(r["Z_MSLM"]) if pd.notna(r["Z_MSLM"]) else None
-                coords[key] = (float(r["Y_LAT"]), float(r["X_LONG"]), elevation)  # lat, lon, elevation
+                if elevation is not None and elevation == -9999:
+                    elevation = None
+                coords[key] = (float(r[lat_col]), float(r[lon_col]), elevation)  # lat, lon, elevation
         return coords
 
     def _load_station_anagraphics(self, fast: bool = False) -> Dict[SiteKey, pd.Series]:
@@ -350,11 +364,13 @@ class AnnaliIngestor:
                     "SIGLA_ENTE_COMPILATORE": "string",
                     "NOME_COMPILATORE": "string",
                     "TIPO_STRUMENTO_ANNALE": "string",
+                    "QUOTA_STRUMENTO_ANNALE": "string",
                 },
             )
             
             for idx, df in enumerate(chunks, start=1):
                 logging.info("Processing station metadata from %s: chunk %d", path.name, idx)
+                self._warn_missing_quota_strumento(df, path)
                 for _, r in df.iterrows():
                     key = SiteKey(str(r["COMPARTIMENTO"]), str(r["ALIAS_STAZIONE"]), str(r["ALIAS_BACINO"]))
                     if key not in strata:
@@ -389,12 +405,29 @@ class AnnaliIngestor:
                     break; # only first chunk if fast
         return strata
 
+    def _warn_missing_quota_strumento(self, df: pd.DataFrame, path: Path) -> None:
+        if "QUOTA_STRUMENTO_ANNALE" not in df.columns:
+            return
+        quota = df["QUOTA_STRUMENTO_ANNALE"]
+        missing = quota.isna() | quota.str.strip().eq("")
+        for row_idx in df.index[missing]:
+            # Header is line 1; pandas index is the 0-based data-row offset.
+            logging.warning(
+                "QUOTA_STRUMENTO_ANNALE is missing at line %d of %s",
+                int(row_idx) + 2,
+                path.name,
+            )
+
     def _load_tipo_grandezza(self) -> pd.DataFrame:
         path = self.data_dir / "TIPO_GRANDEZZA.csv"
         return pd.read_csv(path, sep=',', quotechar=self.quotechar, encoding=self.encoding)
 
-    def _load_strumenti(self) -> pd.DataFrame:
+    def _load_tipo_strumento(self) -> pd.DataFrame:
         path = self.data_dir / "TIPO_STRUMENTO.csv"
+        return pd.read_csv(path, sep=self.sep, quotechar=self.quotechar, encoding=self.encoding)
+
+    def _load_strumento(self) -> pd.DataFrame:
+        path = self.data_dir / "STRUMENTO.csv"
         return pd.read_csv(path, sep=self.sep, quotechar=self.quotechar, encoding=self.encoding)
 
     def _load_compartimenti(self) -> pd.DataFrame:
@@ -413,7 +446,7 @@ class AnnaliIngestor:
             return pd.DataFrame()
 
     def _load_ruoli(self) -> pd.DataFrame:
-        path = self.data_dir / "ENTE_COMPILATORE_rev.csv"
+        path = self.data_dir / "ENTE_COMPILATORE.csv"
         try:
             return pd.read_csv(path, sep=self.sep, quotechar=self.quotechar, encoding=self.encoding)
         except FileNotFoundError:
@@ -560,7 +593,7 @@ class AnnaliIngestor:
         self._processing_level_uid = str(pl.uid)
         return self._processing_level_uid
 
-    def _ensure_site(self, workspace_uid: str, key: SiteKey, coords: Dict[SiteKey, Tuple[float, float, Optional[float]]], strata: Dict[SiteKey, pd.Series], compartimenti: pd.DataFrame, ruoli: pd.DataFrame, metadato_dati: pd.DataFrame, grandezza: str, strumenti: pd.DataFrame) -> str:
+    def _ensure_site(self, workspace_uid: str, key: SiteKey, coords: Dict[SiteKey, Tuple[float, float, Optional[float]]], strata: Dict[SiteKey, pd.Series], compartimenti: pd.DataFrame, ruoli: pd.DataFrame, metadato_dati: pd.DataFrame, grandezza: str, strumento: pd.DataFrame) -> str:
         if key in self._sites:
             return self._sites[key]
 
@@ -671,8 +704,8 @@ class AnnaliIngestor:
                                 m = match.iloc[0]
                                 if "NOME_ENTE_COMPILATORE" in match.columns and pd.notna(m.get("NOME_ENTE_COMPILATORE", None)):
                                     org_label = str(m["NOME_ENTE_COMPILATORE"])
-                                if "RUOLO_ENTE_COMPILATORE" in match.columns and pd.notna(m.get("RUOLO_ENTE_COMPILATORE", None)):
-                                    roles = str(m["RUOLO_ENTE_COMPILATORE"]).split(",")
+                                if "Ruolo" in match.columns and pd.notna(m.get("Ruolo", None)):
+                                    roles = str(m["Ruolo"]).split(",")
                                 if "EmailpuntoContatto" in match.columns and pd.notna(m.get("EmailpuntoContatto", None)):
                                     email = str(m["EmailpuntoContatto"])
 
@@ -692,9 +725,9 @@ class AnnaliIngestor:
                     new_site.add_tag("district", compartimento[:255])
                 sensor_types = []
                 for sensor_code in row.Sensori:
-                    strumenti.loc[strumenti["TIPO_STRUMENTO_ANNALE"] == sensor_code]
-                    if not row_match.empty and "DESCRIZIONE_TIPO_STRUMENTO_ANNALE" in row_match.columns:
-                        description = str(row_match.iloc[0]["DESCRIZIONE_TIPO_STRUMENTO_ANNALE"]) or sensor_code
+                    sensor_match = strumento.loc[strumento["TIPO_STRUMENTO_ANNALE"] == sensor_code]
+                    if not sensor_match.empty and "Descrizione_TIPO_STRUMENTO_ANNALE" in sensor_match.columns:
+                        description = str(sensor_match.iloc[0]["Descrizione_TIPO_STRUMENTO_ANNALE"]) or sensor_code
                         sensor_types.append(description)
                 
                 if sensor_types:
@@ -721,7 +754,7 @@ class AnnaliIngestor:
         self._sites[key] = str(new_site.uid)
         return self._sites[key]
 
-    def _ensure_sensor(self, workspace_uid: str, instrument_code: str, strumenti: pd.DataFrame) -> str:        
+    def _ensure_sensor(self, workspace_uid: str, instrument_code: str, tipo_strumento: pd.DataFrame) -> str:        
 
         cache_key = instrument_code
         if cache_key in self._sensors:
@@ -733,9 +766,9 @@ class AnnaliIngestor:
                 self._sensors[cache_key] = str(sensor.uid)
                 return self._sensors[cache_key]
 
-        # Lookup description from strumenti table (v2 schema)
+        # Lookup description from the instrument class table
         description = instrument_code
-        row_match = strumenti.loc[strumenti["SIGLA_STRUMENTO"] == instrument_code]
+        row_match = tipo_strumento.loc[tipo_strumento["SIGLA_STRUMENTO"] == instrument_code]
         if not row_match.empty and "CATEGORIA_STRUMENTO" in row_match.columns:
             description = str(row_match.iloc[0]["CATEGORIA_STRUMENTO"]) or instrument_code
 
@@ -1061,6 +1094,15 @@ class AnnaliIngestor:
                 seen.add(f)
                 unique.append(f)
         return unique
+
+    @staticmethod
+    def _coordinate_columns(columns) -> Tuple[str, str]:
+        by_name = {str(column).strip().upper(): column for column in columns}
+        lon_col = by_name.get("X_LONG")
+        lat_col = by_name.get("Y_LAT")
+        if lon_col is None or lat_col is None:
+            raise ValueError(f"Station file is missing X_LONG/Y_LAT columns: {list(columns)}")
+        return lon_col, lat_col
 
     @staticmethod
     def _parse_decimal_comma(value: str | float | int | None) -> Optional[float]:

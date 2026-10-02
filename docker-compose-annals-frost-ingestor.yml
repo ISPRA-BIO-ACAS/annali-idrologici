@@ -1,4 +1,4 @@
-# Annals FROST ingestor: upload mapped STA data to FROST Server.
+# Yearbooks FROST ingestor: upload mapped STA data to FROST Server.
 #
 # Prerequisite: prepared and mapped data under ./data/processed/:
 #   docker compose -f docker-compose-annals-prepare.yml up --build

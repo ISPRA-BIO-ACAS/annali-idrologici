@@ -1,8 +1,8 @@
 #!/bin/sh
-# Annals FROST ingestor entrypoint.
+# Yearbooks FROST ingestor entrypoint.
 #
 # Hub / bring-your-own-FROST mode (default ENTRYPOINT):
-#   - downloads Annals data from GitHub when /data is empty
+#   - downloads Yearbooks data from GitHub when /data is empty
 #   - runs prepare + map + upload against FROST_BASE_URL
 #
 # Local compose files override this ENTRYPOINT and mount ./data, so they are unchanged.
@@ -30,7 +30,7 @@ download_from_url() {
   rm -rf "$tmp"
   mkdir -p "$tmp" "$DATA_FOLDER"
 
-  echo "Downloading Annals data from ${url} ..."
+  echo "Downloading Yearbooks data from ${url} ..."
   curl -fL --retry 3 --retry-delay 2 -o "$archive" "$url"
 
   case "$url" in
@@ -71,7 +71,7 @@ download_from_git() {
   rm -rf "$tmp"
   mkdir -p "$DATA_FOLDER"
 
-  echo "Cloning Annals data (sparse: data/) from ${DATA_REPO} @ ${DATA_REF} ..."
+  echo "Cloning Yearbooks data (sparse: data/) from ${DATA_REPO} @ ${DATA_REF} ..."
   echo "This can take a while and needs several GB of disk space."
   git clone --depth 1 --filter=blob:none --sparse --branch "$DATA_REF" "$DATA_REPO" "$tmp"
   git -C "$tmp" sparse-checkout set data
@@ -84,14 +84,14 @@ download_from_git() {
 
 ensure_data() {
   if [ "$FORCE_DOWNLOAD" = "true" ]; then
-    echo "ANNALS_DOWNLOAD_FORCE=true: re-downloading raw Annals data"
+    echo "ANNALS_DOWNLOAD_FORCE=true: re-downloading raw Yearbooks data"
   elif data_present; then
-    echo "Annals raw data found in ${DATA_FOLDER}"
+    echo "Yearbooks raw data found in ${DATA_FOLDER}"
     return 0
   fi
 
   if [ "$SKIP_DOWNLOAD" = "true" ]; then
-    echo "ERROR: No Annals data in ${DATA_FOLDER} and ANNALS_SKIP_DOWNLOAD=true" >&2
+    echo "ERROR: No Yearbooks data in ${DATA_FOLDER} and ANNALS_SKIP_DOWNLOAD=true" >&2
     echo "Mount data at ${DATA_FOLDER} or unset ANNALS_SKIP_DOWNLOAD." >&2
     exit 1
   fi
@@ -108,7 +108,7 @@ ensure_data() {
     echo "ERROR: Download finished but ${DATA_FOLDER}/COMPARTIMENTO.csv (or TIPO_GRANDEZZA.csv) is missing." >&2
     exit 1
   fi
-  echo "Annals raw data ready in ${DATA_FOLDER}"
+  echo "Yearbooks raw data ready in ${DATA_FOLDER}"
 }
 
 apply_hub_defaults() {
@@ -134,7 +134,7 @@ if [ -z "${FROST_BASE_URL:-}" ] && [ "${ANNALS_UPLOAD}" = "true" ]; then
   exit 1
 fi
 
-echo "Starting Annals FROST ingestor"
+echo "Starting Yearbooks FROST ingestor"
 echo "  FROST_BASE_URL=${FROST_BASE_URL:-<not set>}"
 echo "  ANNALS_DATA_FOLDER=${ANNALS_DATA_FOLDER}"
 echo "  ANNALS_LOCAL_FOLDER=${ANNALS_LOCAL_FOLDER}"

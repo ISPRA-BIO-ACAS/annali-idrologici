@@ -1,6 +1,6 @@
 # Ingestor
 
-Maven project for ingesting Annals (ISPRA) hydrological data into a FROST Server (OGC SensorThings API). It provides a shared **FROSTClient** library, STA folder mapping/upload utilities, and the Annals ingestor.
+Maven project for ingesting Yearbooks (ISPRA) hydrological data into a FROST Server (OGC SensorThings API). It provides a shared **FROSTClient** library, STA folder mapping/upload utilities, and the Yearbooks ingestor.
 
 ## Structure
 
@@ -12,8 +12,8 @@ Maven project for ingesting Annals (ISPRA) hydrological data into a FROST Server
     `STAEndpointStats` (endpoint summary: entity counts, Locations bbox, phenomenonTime
     period stats, ObservedProperties), `RemoveDatastreamsByObservedPropertyName`
 
-- **`eu.flora.essi.ingestor.annals`** – Annals (ISPRA) ingestor:
-  - `AnnalsIngestor` – prepares raw data, ingests Annals CSV data into FROST
+- **`eu.flora.essi.ingestor.annals`** – Yearbooks (ISPRA) ingestor:
+  - `AnnalsIngestor` – prepares raw data, ingests Yearbooks CSV data into FROST
   - `AnnalsDataPreparer` – extracts ZIP archives and sorts `OSSERVAZIONI` CSV files into `processed/`
   - Helpers: `CSVTable`, `Compartments`, `Stations`, `TimeSeries`, `GeneralMetadata`, `ObservedProperties`, `Instruments`, `UnitsOfMeasurement`, `EditorOrganizations`, `QualityFlags`, `AnnalsToStaFolderWriter`
 
@@ -42,7 +42,7 @@ mvn compile
 
 Java sources in this module are licensed under **GNU AGPL v3** (author:
 **CNR-ITIAm / ESSI-Lab**; see [`../CITATION-software.cff`](../CITATION-software.cff)).
-The Annals **dataset** under `../data/` is licensed separately under **CC BY 4.0**
+The Yearbooks **dataset** under `../data/` is licensed separately under **CC BY 4.0**
 and attributed to **ISPRA BIO-ACAS** (see [`../LICENSE`](../LICENSE) and
 [`../CITATION.cff`](../CITATION.cff)).
 
@@ -63,7 +63,9 @@ The header template is `license/AGPL-3-header.txt`. Set the copyright holder via
 Main class: **`eu.flora.essi.frost.STAEndpointStats`**
 
 Prints entity counts, Locations N-W-S-E bbox, Datastream `phenomenonTime` period stats
-(shortest / longest / median), and all ObservedProperties for a given FROST/STA root URL:
+(shortest / longest / median), all ObservedProperties, and per-compartment stats grouped by
+the `district` property (distinct `watershed` basins, spatial and elevation extent, temporal
+extent, and counts of Things, Datastreams, and Observations) for a given FROST/STA root URL:
 
 ```bash
 mvn -q exec:java -Dexec.mainClass="eu.flora.essi.frost.STAEndpointStats" \
@@ -75,7 +77,7 @@ Optional flags:
 - `--skip-observations-per-datastream` — skip min/median/max observations per Datastream (one `$count` per Datastream)
 - `--no-log-requests` — disable per-request `GET`/`GOT` logging (enabled by default)
 
-## Run Annals ingestor
+## Run Yearbooks ingestor
 
 Main class: **`eu.flora.essi.ingestor.annals.AnnalsIngestor`**
 
@@ -109,7 +111,7 @@ Environment variables:
 | `ANNALS_PREPARE` | Extract ZIPs and sort CSVs (default: `false`; use prepare compose instead) |
 | `ANNALS_MAP` | Map CSV → STA folder (default: `false`; use prepare compose instead) |
 | `ANNALS_UPLOAD` | Upload STA data to FROST (default: `true`) |
-| `ANNALS_UPLOAD_STRATEGY` | Duplicate handling: `NONE`, `DELETE_BEFORE_UPLOAD`, `DETERMINISTIC_ID` (default: `DETERMINISTIC_ID`) |
+| `ANNALS_UPLOAD_STRATEGY` | `NONE`, `DELETE_BEFORE_UPLOAD` (delete Thing, Location, Datastream, Sensor, ObservedProperty, and Observations, then upload again), `DETERMINISTIC_ID` (default: `DETERMINISTIC_ID`) |
 | `ANNALS_UPLOAD_PARALLELISM` | Parallel datastream observation uploads (default: `16` in Docker Hub / compose; Java fallback `8`) |
 | `ANNALS_BATCH_UPLOAD_TIMEOUT_MINUTES` | End-to-end timeout per `$batch` POST, including FROST processing time (default: `120`) |
 | `ANNALS_BATCH_VERIFY_TIMEOUT_SECONDS` | Max wait while polling observation count after a batch POST (default: `600`) |
@@ -120,7 +122,7 @@ Environment variables:
 
 ## Docker
 
-Multi-stage **`Dockerfile`**: Maven build, then JRE runtime. Default **`entrypoint.sh`** downloads Annals data when `/data` is empty, then runs **`AnnalsIngestor`** with prepare + map + upload enabled (bring-your-own-FROST / Docker Hub mode).
+Multi-stage **`Dockerfile`**: Maven build, then JRE runtime. Default **`entrypoint.sh`** downloads Yearbooks data when `/data` is empty, then runs **`AnnalsIngestor`** with prepare + map + upload enabled (bring-your-own-FROST / Docker Hub mode).
 
 The repository root Compose files override the entrypoint and mount `./data`, so the split prepare / upload workflow is unchanged:
 
@@ -150,7 +152,7 @@ docker run --rm \
 | `FROST_BASE_URL` | Full SensorThings root (**required** for upload; must include `/FROST-Server/v1.1/`) |
 | `ANNALS_MAX_OBSERVATIONS_PER_BATCH` | Observations per `$batch` (default: `1000`) |
 | `ANNALS_UPLOAD_PARALLELISM` | Concurrent datastream upload threads (default: `16`) |
-| `ANNALS_UPLOAD_STRATEGY` | `NONE`, `DELETE_BEFORE_UPLOAD`, `DETERMINISTIC_ID` (default: `DETERMINISTIC_ID`) |
+| `ANNALS_UPLOAD_STRATEGY` | `NONE`, `DELETE_BEFORE_UPLOAD` (delete Thing, Location, Datastream, Sensor, ObservedProperty, and Observations, then upload again), `DETERMINISTIC_ID` (default: `DETERMINISTIC_ID`) |
 | `ANNALS_FAST` | Stop after ~1000 observations (smoke test) |
 | `ANNALS_DATA_REPO` / `ANNALS_DATA_REF` | Git source when `/data` is empty (default: this repo @ `main`) |
 | `ANNALS_DATA_URL` | Optional direct archive URL (Zenodo / release tarball) instead of git |

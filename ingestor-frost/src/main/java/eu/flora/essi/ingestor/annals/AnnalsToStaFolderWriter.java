@@ -39,7 +39,7 @@ import eu.flora.essi.frost.Thing;
 import eu.flora.essi.ingestor.sta.DeterministicIdGenerator;
 
 /**
- * Writes Annals data to STA folder structure for later upload via STAtoFrostUploader.
+ * Writes Yearbooks data to STA folder structure for later upload via STAtoFrostUploader.
  * 
  * Folder structure:
  *   sta/

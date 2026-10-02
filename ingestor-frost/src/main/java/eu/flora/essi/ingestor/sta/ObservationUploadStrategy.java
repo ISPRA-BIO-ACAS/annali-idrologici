@@ -29,16 +29,16 @@ public enum ObservationUploadStrategy {
     NONE,
     
     /**
-     * Delete all existing observations for the datastream before uploading new ones.
-     * Also uses deterministic IDs as a fallback in case delete was incomplete.
-     * Ensures a clean state but temporarily removes all data during upload.
+     * Delete existing Thing, Location, Datastream, Sensor, ObservedProperty, and Observation
+     * records for each site, then upload them again from the STA folder.
+     * An ObservedProperty still referenced by another Datastream is updated in place.
+     * Deterministic {@code @iot.id} values are reused. Data is missing until each entity is posted again.
      */
     DELETE_BEFORE_UPLOAD,
     
     /**
      * Use deterministic IDs based on datastream ID and phenomenonTime.
-     * If the server supports client-defined IDs, this ensures idempotent uploads.
-     * Observations with the same ID will be rejected or updated (depending on server config).
+     * Re-uploading an observation that already has that {@code @iot.id} is treated as success.
      */
     DETERMINISTIC_ID
 }

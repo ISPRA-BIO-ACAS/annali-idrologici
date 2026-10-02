@@ -70,9 +70,9 @@ import eu.flora.essi.ingestor.sta.STAtoFrostUploader;
 
 public class AnnalsIngestor {
 
-    private static final String ANNALS_SITE_ID = "annalsSiteId";
-    private static final String ANNALS_SENSOR_ID = "annalsSensorId";
-    private static final String ANNALS_DATASTREAM_ID = "annalsDatastreamId";
+    private static final String YEARBOOK_SITE_ID = "yearbookSiteId";
+    private static final String YEARBOOK_SENSOR_ID = "yearbookSensorId";
+    private static final String YEARBOOK_DATASTREAM_ID = "yearbookDatastreamId";
     private static final String WATERSHED = "watershed";
     private static final String DISCLAIMER = "disclaimer";
     private static final String FUNDING = "funding";
@@ -91,13 +91,13 @@ public class AnnalsIngestor {
     private static final String EDITOR_INDIVIDUAL = "editorIndividual";
     private static final String EDITOR_ORGANIZATION = "editorOrganization";
     private static final String EDITOR_ROLE = "editorRole";
-    private static final String ANNAL_STATION_NAME = "annalStationName";
-    private static final String ANNAL_BASIN_NAME = "annalBasinName";
-    private static final String ANNAL_INSTRUMENT_TYPE = "annalInstrumentType";
-    private static final String ANNAL_INSTRUMENT_QUOTE = "annalInstrumentQuote";
+    private static final String YEARBOOK_STATION_NAME = "yearbookStationName";
+    private static final String YEARBOOK_BASIN_NAME = "yearbookBasinName";
+    private static final String YEARBOOK_INSTRUMENT_TYPE = "yearbookInstrumentType";
+    private static final String YEARBOOK_INSTRUMENT_QUOTE = "yearbookInstrumentQuote";
     private static final String SAMPLING_FEATURE_CODE = "samplingFeatureCode";
     private static final String VARIABLE_CODE = "variableCode";
-    private static final String ANNALS_VERSION = "annalVersion";
+    private static final String YEARBOOK_VERSION = "yearbookVersion";
 
     /** Number of concurrent observation batch uploads (different datastreams uploaded in parallel). */
     private static final int UPLOAD_PARALLELISM = Math.min(16, Math.max(2, Runtime.getRuntime().availableProcessors() * 2));
@@ -108,6 +108,7 @@ public class AnnalsIngestor {
     private GeneralMetadata generalMetadata;
     private ObservedProperties observedProperties;
     private Instruments instruments;
+    private AnnalInstruments annalInstruments;
     private UnitsOfMeasurement units;
     private EditorOrganizations organizations;
 
@@ -163,6 +164,10 @@ public class AnnalsIngestor {
 	return instruments;
     }
 
+    public AnnalInstruments getAnnalInstruments() {
+	return annalInstruments;
+    }
+
     public UnitsOfMeasurement getUnits() {
 	return units;
     }
@@ -193,8 +198,9 @@ public class AnnalsIngestor {
 	this.generalMetadata = new GeneralMetadata(new File(rawDataFolder, "GENERAL_METADATA.csv"));
 	this.observedProperties = new ObservedProperties(new File(rawDataFolder, "TIPO_GRANDEZZA.csv"));
 	this.instruments = new Instruments(new File(rawDataFolder, "TIPO_STRUMENTO.csv"));
+	this.annalInstruments = new AnnalInstruments(new File(rawDataFolder, "STRUMENTO.csv"));
 	this.units = new UnitsOfMeasurement(new File(rawDataFolder, "UNITA_MISURA_UDM.csv"));
-	this.organizations = new EditorOrganizations(new File(rawDataFolder, "ENTE_COMPILATORE_rev.csv"));
+	this.organizations = new EditorOrganizations(new File(rawDataFolder, "ENTE_COMPILATORE.csv"));
 	File[] files = processedDataFolder.listFiles();
 	this.observationFiles = new ArrayList<File>();
 	if (files != null) {
@@ -227,7 +233,7 @@ public class AnnalsIngestor {
 
     public void ingestData() throws Exception {
 	Instant overallStart = Instant.now();
-	System.out.println("=== Annals ingestion started at " + overallStart + " ===");
+	System.out.println("=== Yearbooks ingestion started at " + overallStart + " ===");
 	ExecutorService uploadExecutor = null;
 	List<Future<?>> pendingUploads = new ArrayList<>();
 	AtomicLong totalObservationsSubmitted = new AtomicLong(0);
@@ -276,7 +282,7 @@ public class AnnalsIngestor {
 			System.out.print(t + " ... ");
 		    }
 		    CSVRecord record = entry.getValue();
-		    String compartment = record.get("Compartimento");
+		    String compartment = record.get("COMPARTIMENTO");
 		    String basin = record.get("ALIAS_BACINO");
 		    String station = record.get("ALIAS_STAZIONE");
 		    ingestThing(compartment, basin, station);
@@ -323,10 +329,10 @@ public class AnnalsIngestor {
 			String annalPart = record.get("PARTE_ANNALE");
 			String page = record.get("PAGINA");
 			String orderTable = record.get("TABELLA_ORDINE");
-			String annalStationName = record.get("NOME_STAZIONE_ANNALE");
-			String annalBasinName = record.get("NOME_BACINO_ANNALE");
-			String annalInstrumentType = record.get("TIPO_STRUMENTO_ANNALE");
-			String annalInstrumentQuote = record.get("QUOTA_STRUMENTO_ANNALE");
+			String yearbookStationName = record.get("NOME_STAZIONE_ANNALE");
+			String yearbookBasinName = record.get("NOME_BACINO_ANNALE");
+			String yearbookInstrumentType = record.get("TIPO_STRUMENTO_ANNALE");
+			String yearbookInstrumentQuote = record.get("QUOTA_STRUMENTO_ANNALE");
 
 			Integer year = Integer.parseInt(record.get("ANNO"));
 			Integer month = Integer.parseInt(record.get("MESE"));
@@ -378,10 +384,10 @@ public class AnnalsIngestor {
 			String editorOrganizationRole = organizations.getRole(editorOrganizationCode);
 			obsProperties.put(EDITOR_ROLE, editorOrganizationRole);
 
-			obsProperties.put(ANNAL_STATION_NAME, annalStationName);
-			obsProperties.put(ANNAL_BASIN_NAME, annalBasinName);
-			obsProperties.put(ANNAL_INSTRUMENT_TYPE, annalInstrumentType);
-			obsProperties.put(ANNAL_INSTRUMENT_QUOTE, annalInstrumentQuote);
+			obsProperties.put(YEARBOOK_STATION_NAME, yearbookStationName);
+			obsProperties.put(YEARBOOK_BASIN_NAME, yearbookBasinName);
+			obsProperties.put(YEARBOOK_INSTRUMENT_TYPE, yearbookInstrumentType);
+			obsProperties.put(YEARBOOK_INSTRUMENT_QUOTE, yearbookInstrumentQuote);
 			o.setParameters(obsProperties);
 
 			boolean needToPatchDSMetadata = false;
@@ -502,8 +508,8 @@ public class AnnalsIngestor {
 		    (absSeconds % 3600) / 60, //
 		    absSeconds % 60, //
 		    overallDuration.toMillisPart());
-	    System.out.println("=== Annals ingestion ended at " + overallEnd + " ===");
-	    System.out.println("=== Annals ingestion duration: " + humanDuration + " (HH:mm:ss.SSS) ===");
+	    System.out.println("=== Yearbooks ingestion ended at " + overallEnd + " ===");
+	    System.out.println("=== Yearbooks ingestion duration: " + humanDuration + " (HH:mm:ss.SSS) ===");
 	}
     }
 
@@ -515,7 +521,7 @@ public class AnnalsIngestor {
 	if (ret != null) {
 	    return ret;
 	}
-	PagedResult<Datastream> response = client.getDatastreamsByProperty(ANNALS_DATASTREAM_ID, id);
+	PagedResult<Datastream> response = client.getDatastreamsByProperty(YEARBOOK_DATASTREAM_ID, id);
 	if (response.getItems().isEmpty()) {
 	    return null;
 	} else {
@@ -534,7 +540,7 @@ public class AnnalsIngestor {
 	    return ret;
 	}
 
-	PagedResult<Thing> response = client.getThingsByProperty(ANNALS_SITE_ID, id);
+	PagedResult<Thing> response = client.getThingsByProperty(YEARBOOK_SITE_ID, id);
 	if (response.getItems().isEmpty()) {
 	    return null;
 	} else {
@@ -579,7 +585,7 @@ public class AnnalsIngestor {
 	thing = new Thing();
 	JSONObject properties = new JSONObject();
 	String thingId = generateThingId(compartment, basin, station);
-	properties.put(ANNALS_SITE_ID, thingId);
+	properties.put(YEARBOOK_SITE_ID, thingId);
 	properties.put(WATERSHED, basin);
 	properties.put(DISTRICT, compartments.getName(compartment));
 	properties.put(TERRITORY_OF_ORIGIN, generalMetadata.getTerritoryName());
@@ -610,8 +616,8 @@ public class AnnalsIngestor {
 	    String aggregationPeriod = observedProperties.getAggregationPeriod(observedProperty);
 	    String observedPropertyDescription = observedProperties.getObservedPropertyDescription(observedProperty);
 
-	    String uomSymbol = units.getUnitsOfMeasurement(instrumentClass);
-	    String uomName = units.getUnitsOfMeasurementDescription(instrumentClass);
+	    String uomSymbol = instruments.getUdm(instrumentClass);
+	    String uomName = units.getUnitsOfMeasurementDescription(uomSymbol);
 
 	    UnitOfMeasurement uom = new UnitOfMeasurement(uomName, uomSymbol);
 	    String dsName = station + " - " + observedPropertyDescription;
@@ -625,8 +631,8 @@ public class AnnalsIngestor {
 	    JSONObject dsProperties = new JSONObject();
 	    dsProperties.put(RESULT_TYPE, "Timeseries");
 	    dsProperties.put(SAMPLED_MEDIUM, medium);
-	    dsProperties.put(ANNALS_DATASTREAM_ID, generateDatastreamId(compartment, basin, station, observedProperty));
-	    dsProperties.put(ANNALS_VERSION, version);
+	    dsProperties.put(YEARBOOK_DATASTREAM_ID, generateDatastreamId(compartment, basin, station, observedProperty));
+	    dsProperties.put(YEARBOOK_VERSION, version);
 	    dsProperties.put(INTENDED_TIME_SPACING, aggregationPeriod);
 	    dsProperties.put(AGGREGATION_STATISTIC, interpolationType);
 	    dsProperties.put(AGGREGATION_PERIOD, aggregationPeriod);
@@ -669,14 +675,14 @@ public class AnnalsIngestor {
     }
 
     private Long ensureSensor(String instrumentClass, String instrumentLabel) throws Exception {
-	PagedResult<Sensor> sensors = client.getSensorsByProperty(ANNALS_SENSOR_ID, instrumentClass);
+	PagedResult<Sensor> sensors = client.getSensorsByProperty(YEARBOOK_SENSOR_ID, instrumentClass);
 	if (sensors.getItems().isEmpty()) {
 	    Sensor sensor = new Sensor(instrumentClass, instrumentLabel, "application/json", "");
 	    JSONObject props = new JSONObject();
-	    props.put(ANNALS_SENSOR_ID, instrumentClass);
+	    props.put(YEARBOOK_SENSOR_ID, instrumentClass);
 	    sensor.setProperties(props);
 	    client.postSensor(sensor);
-	    sensors = client.getSensorsByProperty(ANNALS_SENSOR_ID, instrumentClass);
+	    sensors = client.getSensorsByProperty(YEARBOOK_SENSOR_ID, instrumentClass);
 	    return sensors.getItems().get(0).getId();
 	} else {
 	    return sensors.getItems().get(0).getId();
@@ -696,7 +702,7 @@ public class AnnalsIngestor {
     private static final DateTimeFormatter ISO_TIME = DateTimeFormatter.ISO_LOCAL_DATE_TIME.withZone(ZoneOffset.UTC);
 
     /**
-     * Prepare raw Annals data: copy regional CSV files, extract ZIP archives, and sort
+     * Prepare raw Yearbooks data: copy regional CSV files, extract ZIP archives, and sort
      * OSSERVAZIONI files into {@code <rawDataFolder>/processed/}.
      */
     public static void prepare(File rawDataFolder, boolean forceOverwrite) throws Exception {
@@ -704,7 +710,7 @@ public class AnnalsIngestor {
     }
 
     /**
-     * Map Annals CSV data to STA folder structure (without uploading to FROST).
+     * Map Yearbooks CSV data to STA folder structure (without uploading to FROST).
      */
     public void map() {
 	Instant start = Instant.now();
@@ -777,13 +783,13 @@ public class AnnalsIngestor {
     }
 
     /**
-     * Map all Annals data to STA folder structure.
+     * Map all Yearbooks data to STA folder structure.
      */
     private void mapToStaFolder() throws Exception {
 	Path staRoot = Paths.get(localFolder, "sta");
 	AnnalsToStaFolderWriter writer = new AnnalsToStaFolderWriter(staRoot, maxObservationsPerBatch);
 
-	System.out.println("Mapping Annals data to STA folder: " + staRoot);
+	System.out.println("Mapping Yearbooks data to STA folder: " + staRoot);
 	System.out.println("  Observations per batch file: " + maxObservationsPerBatch);
 
 	// Create sensors map (instrumentClass -> Sensor)
@@ -793,7 +799,7 @@ public class AnnalsIngestor {
 	    String instrumentLabel = instruments.getClassLabelByClass(instrumentClass);
 	    Sensor sensor = new Sensor(instrumentClass, instrumentLabel, "application/json", "");
 	    JSONObject props = new JSONObject();
-	    props.put(ANNALS_SENSOR_ID, instrumentClass);
+	    props.put(YEARBOOK_SENSOR_ID, instrumentClass);
 	    sensor.setProperties(props);
 	    sensorsMap.put(instrumentClass, sensor);
 	}
@@ -837,7 +843,7 @@ public class AnnalsIngestor {
 		System.out.print(thingCount + " ... ");
 	    }
 	    CSVRecord record = entry.getValue();
-	    String compartment = record.get("Compartimento");
+	    String compartment = record.get("COMPARTIMENTO");
 	    String basin = record.get("ALIAS_BACINO");
 	    String station = record.get("ALIAS_STAZIONE");
 
@@ -908,10 +914,10 @@ public class AnnalsIngestor {
 		    String annalPart = csvRecord.get("PARTE_ANNALE");
 		    String page = csvRecord.get("PAGINA");
 		    String orderTable = csvRecord.get("TABELLA_ORDINE");
-		    String annalStationName = csvRecord.get("NOME_STAZIONE_ANNALE");
-		    String annalBasinName = csvRecord.get("NOME_BACINO_ANNALE");
-		    String annalInstrumentType = csvRecord.get("TIPO_STRUMENTO_ANNALE");
-		    String annalInstrumentQuote = csvRecord.get("QUOTA_STRUMENTO_ANNALE");
+		    String yearbookStationName = csvRecord.get("NOME_STAZIONE_ANNALE");
+		    String yearbookBasinName = csvRecord.get("NOME_BACINO_ANNALE");
+		    String yearbookInstrumentType = csvRecord.get("TIPO_STRUMENTO_ANNALE");
+		    String yearbookInstrumentQuote = csvRecord.get("QUOTA_STRUMENTO_ANNALE");
 
 		    Integer year = Integer.parseInt(csvRecord.get("ANNO"));
 		    Integer month = Integer.parseInt(csvRecord.get("MESE"));
@@ -953,10 +959,10 @@ public class AnnalsIngestor {
 		    obsProperties.put(EDITOR_ORGANIZATION, editorOrganizationName);
 		    String editorOrganizationRole = organizations.getRole(editorOrganizationCode);
 		    obsProperties.put(EDITOR_ROLE, editorOrganizationRole);
-		    obsProperties.put(ANNAL_STATION_NAME, annalStationName);
-		    obsProperties.put(ANNAL_BASIN_NAME, annalBasinName);
-		    obsProperties.put(ANNAL_INSTRUMENT_TYPE, annalInstrumentType);
-		    obsProperties.put(ANNAL_INSTRUMENT_QUOTE, annalInstrumentQuote);
+		    obsProperties.put(YEARBOOK_STATION_NAME, yearbookStationName);
+		    obsProperties.put(YEARBOOK_BASIN_NAME, yearbookBasinName);
+		    obsProperties.put(YEARBOOK_INSTRUMENT_TYPE, yearbookInstrumentType);
+		    obsProperties.put(YEARBOOK_INSTRUMENT_QUOTE, yearbookInstrumentQuote);
 		    o.setParameters(obsProperties);
 
 		    writer.writeObservation(datastreamId, o);
@@ -1002,7 +1008,7 @@ public class AnnalsIngestor {
 	Thing thing = new Thing();
 	JSONObject properties = new JSONObject();
 	String thingId = generateThingId(compartment, basin, station);
-	properties.put(ANNALS_SITE_ID, thingId);
+	properties.put(YEARBOOK_SITE_ID, thingId);
 	properties.put("siteId", thingId); // For STAtoFrostUploader compatibility
 	properties.put(WATERSHED, basin);
 	properties.put(DISTRICT, compartments.getName(compartment));
@@ -1035,8 +1041,8 @@ public class AnnalsIngestor {
 	String aggregationPeriod = observedProperties.getAggregationPeriod(observedProperty);
 	String observedPropertyDescription = observedProperties.getObservedPropertyDescription(observedProperty);
 
-	String uomSymbol = units.getUnitsOfMeasurement(instrumentClass);
-	String uomName = units.getUnitsOfMeasurementDescription(instrumentClass);
+	String uomSymbol = instruments.getUdm(instrumentClass);
+	String uomName = units.getUnitsOfMeasurementDescription(uomSymbol);
 
 	UnitOfMeasurement uom = new UnitOfMeasurement(uomName, uomSymbol);
 	String dsName = station + " - " + observedPropertyDescription;
@@ -1054,9 +1060,9 @@ public class AnnalsIngestor {
 	dsProperties.put(RESULT_TYPE, "Timeseries");
 	dsProperties.put(SAMPLED_MEDIUM, medium);
 	String datastreamId = generateDatastreamId(compartment, basin, station, observedProperty);
-	dsProperties.put(ANNALS_DATASTREAM_ID, datastreamId);
+	dsProperties.put(YEARBOOK_DATASTREAM_ID, datastreamId);
 	dsProperties.put("datastreamId", datastreamId); // For STAtoFrostUploader compatibility
-	dsProperties.put(ANNALS_VERSION, version);
+	dsProperties.put(YEARBOOK_VERSION, version);
 	dsProperties.put(INTENDED_TIME_SPACING, aggregationPeriod);
 	dsProperties.put(AGGREGATION_STATISTIC, interpolationType);
 	dsProperties.put(AGGREGATION_PERIOD, aggregationPeriod);
@@ -1145,7 +1151,7 @@ public class AnnalsIngestor {
 
 	// Strategy to handle duplicate observations:
 	// - NONE: no duplicate handling (may create duplicates)
-	// - DELETE_BEFORE_UPLOAD: delete existing observations + use deterministic IDs (most thorough)
+	// - DELETE_BEFORE_UPLOAD: delete existing Thing, Location, Datastream, Sensor, ObservedProperty and Observations, then upload again
 	// - DETERMINISTIC_ID: only use deterministic IDs (no delete)
 	ObservationUploadStrategy uploadStrategy = getUploadStrategyEnv("ANNALS_UPLOAD_STRATEGY",
 		ObservationUploadStrategy.DETERMINISTIC_ID);

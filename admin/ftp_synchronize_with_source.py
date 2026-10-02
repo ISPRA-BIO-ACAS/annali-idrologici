@@ -16,6 +16,33 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+TEXT_EXTENSIONS = {'.csv', '.txt'}
+
+
+def normalize_to_utf8(local_file: Path) -> None:
+    """Re-encode a downloaded text file to UTF-8 in place, if it isn't already.
+
+    ISPRA's source files are not consistently encoded (a mix of UTF-8,
+    Windows-1252 and Latin-1), so binary FTP transfer alone does not
+    guarantee UTF-8 output. Falls back to Windows-1252, a superset of
+    Latin-1 covering the Western-European characters seen in this dataset,
+    which decodes any byte sequence without raising.
+    """
+    if local_file.suffix.lower() not in TEXT_EXTENSIONS:
+        return
+
+    raw = local_file.read_bytes()
+
+    try:
+        raw.decode('utf-8')
+        return
+    except UnicodeDecodeError:
+        pass
+
+    text = raw.decode('cp1252')
+    local_file.write_text(text, encoding='utf-8')
+    logger.info(f"Converted to UTF-8: {local_file}")
+
 
 class FTPDownloader:
     def __init__(self, host: str, username: str, password: str, remote_dir: str, local_dir: str):
@@ -149,6 +176,8 @@ class FTPDownloader:
                     f"Size mismatch for {remote_file}: expected {file_size}, got {local_file.stat().st_size}"
                 )
                 return False
+
+            normalize_to_utf8(local_file)
 
             self.downloaded_files.append(local_file)
             logger.info(f"Downloaded: {remote_file} -> {local_file}")

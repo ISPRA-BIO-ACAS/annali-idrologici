@@ -1,4 +1,4 @@
-# FROST Server + PostGIS for Annals (ISPRA) data publication.
+# FROST Server + PostGIS for Yearbooks (ISPRA) data publication.
 #
 # Start this stack first and keep it running:
 #   docker compose -f docker-compose-frost.yml up -d

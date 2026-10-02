@@ -60,7 +60,8 @@ public class CSVTable {
 	System.out.println("Loading table " + csvFile.getName() + " in memory");
 	this.keys = keys;
 	try (Reader in = new FileReader(csvFile)) {
-	    Iterable<CSVRecord> records = CSVFormat.DEFAULT.withFirstRecordAsHeader().parse(in);
+	    CSVFormat format = CSVFormat.DEFAULT.builder().setHeader().setSkipHeaderRecord(true).setIgnoreHeaderCase(true).build();
+	    Iterable<CSVRecord> records = format.parse(in);
 	    int total = 0;
 	    for (CSVRecord record : records) {
 		String superKey = "";

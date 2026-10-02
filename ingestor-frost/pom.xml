@@ -7,7 +7,7 @@
 	<artifactId>ingestor</artifactId>
 	<version>1.0-SNAPSHOT</version>
 	<name>Ingestor</name>
-	<description>Ingest tools for FROST Server (SensorThings API). Shared FROSTClient library and ingestors (e.g. Annals/ISPRA).</description>
+	<description>Ingest tools for FROST Server (SensorThings API). Shared FROSTClient library and ingestors (e.g. Yearbooks/ISPRA).</description>
 
 	<licenses>
 		<license>

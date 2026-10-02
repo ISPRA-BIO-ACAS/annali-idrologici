@@ -1,7 +1,7 @@
 cff-version: 1.2.0
-title: "Italian Hydrological Annals Interoperable Dataset"
+title: "Italian Hydrological Yearbooks Interoperable Dataset"
 message: >
-  If you use the Italian Hydrological Annals *dataset* (CSV/ZIP files under
+  If you use the Italian Hydrological Yearbooks *dataset* (CSV/ZIP files under
   data/), please cite it using the metadata below. Author of the dataset:
   ISPRA BIO-ACAS. Contributors include the CNR-ITIAm publication software
   author listed below (also exported to the linked Zenodo record). For
@@ -15,6 +15,7 @@ contributors:
   - family-names: Lastoria
     given-names: Barbara
     affiliation: ISPRA BIO-ACAS
+    orcid: https://orcid.org/0009-0006-3139-856X
 
   - family-names: Casaioli
     given-names: Marco
@@ -40,13 +41,13 @@ license: CC-BY-4.0
 url: https://github.com/ISPRA-BIO-ACAS/annali-idrologici
 
 abstract: >
-  Digital database of the Italian Hydrological Annals obtained by
+  Digital database of the Italian Hydrological Yearbooks obtained by
   digitizing the original printed volumes and performing quality control.
   Licensed under CC BY 4.0.
 
 keywords:
   - hydrology
   - Italy
-  - Hydrological Annals
+  - Hydrological Yearbooks
   - time series
   - digitization

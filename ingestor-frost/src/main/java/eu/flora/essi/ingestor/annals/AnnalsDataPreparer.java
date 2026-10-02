@@ -49,7 +49,7 @@ import org.apache.commons.csv.CSVPrinter;
 import org.apache.commons.csv.CSVRecord;
 
 /**
- * Prepares raw Annals data for ingestion: copies regional CSV files, extracts ZIP
+ * Prepares raw Yearbooks data for ingestion: copies regional CSV files, extracts ZIP
  * archives, and sorts OSSERVAZIONI CSV files into a separate {@code processed/} tree.
  */
 public final class AnnalsDataPreparer {
@@ -80,7 +80,7 @@ public final class AnnalsDataPreparer {
 	}
 
 	Files.createDirectories(processedRoot);
-	System.out.println("Preparing Annals data");
+	System.out.println("Preparing Yearbooks data");
 	System.out.println("  Raw folder: " + rawRoot.toAbsolutePath());
 	System.out.println("  Processed folder: " + processedRoot.toAbsolutePath());
 	System.out.println("  Force overwrite: " + forceOverwrite);

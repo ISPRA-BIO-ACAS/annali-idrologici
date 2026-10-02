@@ -70,6 +70,8 @@ public class FROSTClient {
     private static final int BATCH_VERIFY_STABLE_POLLS = 5;
     /** Minimum time after batch POST before accepting a stable count below expected as final. */
     private static final long BATCH_VERIFY_MIN_ELAPSED_MS = 60_000L;
+    /** Max {@code id eq ... or id eq ...} terms per existence query (keeps the URL short). */
+    private static final int OBSERVATION_ID_FILTER_CHUNK = 40;
 
     public FROSTClient(String baseUrl) {
 	// Ensure base URL ends with /
@@ -982,11 +984,14 @@ public class FROSTClient {
     }
 
     private void verifyObservationsInserted(Long datastreamId, String datastreamLabel, String batchFileName,
-	    long countBefore, int expectedRequestCount) throws IOException, InterruptedException {
+	    long countBefore, int expectedRequestCount, List<Long> observationIds)
+	    throws IOException, InterruptedException {
+	boolean idCheckEnabled = observationIds != null && observationIds.size() == expectedRequestCount;
 	Instant verifyStart = Instant.now();
 	Instant deadline = verifyStart.plus(batchVerifyTimeout());
 	int pollIntervalMs = batchVerifyPollIntervalMs();
 	long lastCount = countBefore;
+	long lastIdCheckCount = Long.MIN_VALUE;
 	int stablePolls = 0;
 	Instant lastIncrease = verifyStart;
 	long lastProgressLogMs = 0L;
@@ -1000,6 +1005,12 @@ public class FROSTClient {
 		}
 		return;
 	    }
+	    if (idCheckEnabled && countAfter != lastIdCheckCount
+		    && observationIdsPresent(observationIds) >= observationIds.size()) {
+		logObservationsAlreadyPresent(datastreamId, batchFileName, inserted, expectedRequestCount);
+		return;
+	    }
+	    lastIdCheckCount = countAfter;
 
 	    if (countAfter > lastCount) {
 		lastCount = countAfter;
@@ -1028,13 +1039,70 @@ public class FROSTClient {
 
 	long countAfter = getObservationCountForDatastream(datastreamId);
 	long inserted = countAfter - countBefore;
-	if (inserted < expectedRequestCount) {
-	    throw new FROSTBatchUploadException(datastreamLabel, datastreamId, batchFileName, inserted,
-		    expectedRequestCount);
+	if (inserted >= expectedRequestCount) {
+	    if (logRequests) {
+		System.out.println("Verified " + inserted + " observations created for datastream " + datastreamId);
+	    }
+	    return;
 	}
-	if (logRequests) {
-	    System.out.println("Verified " + inserted + " observations created for datastream " + datastreamId);
+	if (idCheckEnabled && countAfter != lastIdCheckCount
+		&& observationIdsPresent(observationIds) >= observationIds.size()) {
+	    logObservationsAlreadyPresent(datastreamId, batchFileName, inserted, expectedRequestCount);
+	    return;
 	}
+	throw new FROSTBatchUploadException(datastreamLabel, datastreamId, batchFileName, inserted,
+		expectedRequestCount);
+    }
+
+    /**
+     * A repeated upload POSTs the same {@code @iot.id} values. FROST rejects those creates, so the
+     * datastream count does not rise, but the observations are already stored.
+     */
+    private void logObservationsAlreadyPresent(Long datastreamId, String batchFileName, long inserted,
+	    int expectedRequestCount) {
+	long newlyVisible = Math.max(0L, inserted);
+	long alreadyStored = expectedRequestCount - newlyVisible;
+	System.out.println("  Batch verify: " + expectedRequestCount + "/" + expectedRequestCount
+		+ " observations present for datastream " + datastreamId + " (" + batchFileName + ", "
+		+ newlyVisible + " new, " + alreadyStored + " already stored)");
+    }
+
+    /** How many of {@code observationIds} already exist. Missing ids count as not present. */
+    private long observationIdsPresent(List<Long> observationIds) throws IOException, InterruptedException {
+	long present = 0L;
+	for (int offset = 0; offset < observationIds.size(); offset += OBSERVATION_ID_FILTER_CHUNK) {
+	    int end = Math.min(offset + OBSERVATION_ID_FILTER_CHUNK, observationIds.size());
+	    StringBuilder filter = new StringBuilder();
+	    for (int i = offset; i < end; i++) {
+		if (i > offset) {
+		    filter.append(" or ");
+		}
+		filter.append("id eq ").append(observationIds.get(i));
+	    }
+	    present += count("Observations?$filter=" + FilterBuilder.urlEncode(filter.toString()));
+	}
+	return present;
+    }
+
+    /**
+     * {@code @iot.id} of every request in a {@code $batch} body.
+     * Empty when any observation has no id, so verification stays count-based.
+     */
+    private static List<Long> observationIdsFromBatch(JSONObject batch) {
+	JSONArray requests = batch.optJSONArray("requests");
+	if (requests == null || requests.isEmpty()) {
+	    return List.of();
+	}
+	List<Long> ids = new ArrayList<>(requests.length());
+	for (int i = 0; i < requests.length(); i++) {
+	    JSONObject request = requests.optJSONObject(i);
+	    JSONObject body = request == null ? null : request.optJSONObject("body");
+	    if (body == null || !body.has("@iot.id")) {
+		return List.of();
+	    }
+	    ids.add(body.getLong("@iot.id"));
+	}
+	return ids;
     }
 
     /**
@@ -1652,6 +1720,7 @@ public class FROSTClient {
 	}
 	String url = baseUrl + "$batch";
 	Duration timeout = batchUploadTimeout();
+	List<Long> observationIds = observationIdsFromBatch(new JSONObject(batchBodyString));
 
 	Long countBefore = null;
 	if (datastreamId != null && expectedRequestCount > 0) {
@@ -1661,7 +1730,8 @@ public class FROSTClient {
 	executeBatchPost(url, batchBodyString, timeout);
 
 	if (countBefore != null) {
-	    verifyObservationsInserted(datastreamId, datastreamLabel, batchFileName, countBefore, expectedRequestCount);
+	    verifyObservationsInserted(datastreamId, datastreamLabel, batchFileName, countBefore, expectedRequestCount,
+		    observationIds);
 	}
     }
 
@@ -1678,6 +1748,8 @@ public class FROSTClient {
 	}
 	String url = baseUrl + "$batch";
 	Duration timeout = batchUploadTimeout();
+	List<Long> observationIds = observationIdsFromBatch(
+		new JSONObject(Files.readString(batchFile, StandardCharsets.UTF_8)));
 
 	Long countBefore = null;
 	if (datastreamId != null && expectedRequestCount > 0) {
@@ -1687,7 +1759,8 @@ public class FROSTClient {
 	executeBatchPostFromFile(url, batchFile, timeout);
 
 	if (countBefore != null) {
-	    verifyObservationsInserted(datastreamId, datastreamLabel, batchFileName, countBefore, expectedRequestCount);
+	    verifyObservationsInserted(datastreamId, datastreamLabel, batchFileName, countBefore, expectedRequestCount,
+		    observationIds);
 	}
     }
 }

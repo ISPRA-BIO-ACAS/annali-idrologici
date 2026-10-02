@@ -17,6 +17,7 @@
  */
 package eu.flora.essi.frost;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import org.json.JSONArray;
@@ -91,6 +92,25 @@ public class Thing {
 	jsonArray.put(location.toJSON());
 	json.put("Locations", jsonArray);
 
+    }
+
+    /**
+     * Locations inline on this Thing when the entity was fetched with {@code $expand=Locations}.
+     * Empty when Locations is absent or only a navigation link.
+     */
+    public List<Location> getExpandedLocations() {
+	Object raw = json.opt("Locations");
+	if (!(raw instanceof JSONArray array)) {
+	    return List.of();
+	}
+	List<Location> locations = new ArrayList<>();
+	for (int i = 0; i < array.length(); i++) {
+	    Object item = array.opt(i);
+	    if (item instanceof JSONObject location) {
+		locations.add(new Location(location));
+	    }
+	}
+	return locations;
     }
 
     public void setDatastreams(List<Datastream> datastreams) {

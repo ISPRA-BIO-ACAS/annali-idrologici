@@ -1,4 +1,4 @@
-# HydroServer stack for Annals (ISPRA) data publication.
+# HydroServer stack for Yearbooks (ISPRA) data publication.
 #
 # Start this stack first and keep it running:
 #   docker compose -f docker-compose-hydroserver.yml up -d
@@ -23,7 +23,7 @@ services:
       SECRET_KEY: ${HS_SECRET_KEY:-changeme}
       DATABASE_URL: postgres://hydroserver:${HS_DB_PASSWORD:-changeme}@hydroserver-database:5432/hydroserver
       # Include 127.0.0.1 and service name so healthcheck (127.0.0.1) and internal calls (hydroserver-web) are accepted by Django
-      ALLOWED_HOSTS: "${HS_ALLOWED_HOSTS:-localhost,127.0.0.1,hydroserver-web}"
+      ALLOWED_HOSTS: "${HS_ALLOWED_HOSTS:-localhost,127.0.0.1,hydroserver-web,host.docker.internal}"
       SMTP_URL: "smtp://smtp:25"
       DEFAULT_FROM_EMAIL: "${HS_DEFAULT_FROM_EMAIL:-webmaster@localhost}"
     depends_on:

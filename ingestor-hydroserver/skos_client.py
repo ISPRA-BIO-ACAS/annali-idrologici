@@ -1,4 +1,4 @@
-# Annals HydroServer ingestor
+# Yearbooks HydroServer ingestor
 # Copyright (C) 2026 National Research Council of Italy (CNR)/Institute of Technologies and Environmental Intelligence (ITIAm)/ESSI-Lab
 #
 # This program is free software: you can redistribute it and/or modify

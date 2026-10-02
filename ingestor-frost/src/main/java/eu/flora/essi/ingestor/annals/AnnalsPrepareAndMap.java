@@ -26,7 +26,7 @@ import java.time.Instant;
 import eu.flora.essi.ingestor.sta.ObservationUploadStrategy;
 
 /**
- * Prepare raw Annals data and map CSV files to STA folder structure.
+ * Prepare raw Yearbooks data and map CSV files to STA folder structure.
  * Does not require a running FROST Server.
  */
 public final class AnnalsPrepareAndMap {
@@ -100,8 +100,8 @@ public final class AnnalsPrepareAndMap {
 		(absSeconds % 3600) / 60,
 		absSeconds % 60,
 		overallDuration.toMillisPart());
-	System.out.println("=== Annals prepare/map ended at " + overallEnd + " ===");
-	System.out.println("=== Annals prepare/map duration: " + humanDuration + " (HH:mm:ss.SSS) ===");
+	System.out.println("=== Yearbooks prepare/map ended at " + overallEnd + " ===");
+	System.out.println("=== Yearbooks prepare/map duration: " + humanDuration + " (HH:mm:ss.SSS) ===");
     }
 
     private static boolean getBooleanEnv(String name, boolean defaultValue) {

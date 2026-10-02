@@ -80,7 +80,17 @@ public class GeneralMetadata {
     }
 
     public String getLicence() {
-	return map.get("licence");
+	String ret = map.get("Licence");
+	if (ret == null) {
+	    ret = map.get("licence");
+	}
+	if (ret == null) {
+	    ret = map.get("License");
+	}
+	if (ret == null) {
+	    ret = map.get("license");
+	}
+	return ret;
     }
 
     public String getDisclaimer() {
@@ -100,13 +110,22 @@ public class GeneralMetadata {
 	if (ret == null) {
 	    ret = map.get("Reference_Title");
 	}
+	if (ret == null) {
+	    ret = map.get("ReferenceTitle");
+	}
 	return ret;
     }
     
     public String getReferenceAuthor() {
-	String ret = map.get("Referece_Author");
+	String ret = map.get("Reference_author");
+	if (ret == null) {
+	    ret = map.get("Referece_Author");
+	}
 	if (ret == null) {
 	    ret = map.get("Reference_Author");
+	}
+	if (ret == null) {
+	    ret = map.get("ReferenceAuthor");
 	}
 	return ret;
     }

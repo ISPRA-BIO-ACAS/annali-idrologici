@@ -1,4 +1,4 @@
-# Annals HydroServer ingestor
+# Yearbooks HydroServer ingestor
 # Copyright (C) 2026 National Research Council of Italy (CNR)/Institute of Technologies and Environmental Intelligence (ITIAm)/ESSI-Lab
 #
 # This program is free software: you can redistribute it and/or modify
@@ -123,9 +123,9 @@ def main():
     ended_wall = datetime.now(timezone.utc)
     elapsed_ms = int((time.monotonic() - started_at) * 1000)
     logging.info("Ingestion complete")
-    logging.info("Annals ingestion ended at %s", ended_wall.isoformat())
+    logging.info("Yearbooks ingestion ended at %s", ended_wall.isoformat())
     logging.info(
-        "Annals ingestion duration: %s (HH:mm:ss.SSS)",
+        "Yearbooks ingestion duration: %s (HH:mm:ss.SSS)",
         _format_duration(elapsed_ms),
     )
 

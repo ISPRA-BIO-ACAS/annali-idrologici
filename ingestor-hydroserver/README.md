@@ -1,6 +1,6 @@
-# HydroServer Annals ingestor
+# HydroServer Yearbooks ingestor
 
-Python ingestor that loads prepared Annals CSV data into [HydroServer](https://github.com/hydroserver2).
+Python ingestor that loads prepared Yearbooks CSV data into [HydroServer](https://github.com/hydroserver2).
 
 ## Docker
 
@@ -26,7 +26,7 @@ docker compose -f ../docker-compose-annals-hs-ingestor.yml up --build
 | `HYDROSERVER_URL` | HydroServer base URL (default: `http://host.docker.internal:8000`) |
 | `HYDROSERVER_EMAIL` | Account email for API auth |
 | `HYDROSERVER_PASSWORD` | Account password |
-| `HS_DATA_DIR` | Annals data root (default: `/data`) |
+| `HS_DATA_DIR` | Yearbooks data root (default: `/data`) |
 | `HS_WORKSPACE_NAME` | Workspace name to create/use (default: `Annali`) |
 | `HS_FAST` | Smoke-test mode with a reduced dataset (default: `false` in compose) |
 
@@ -34,6 +34,6 @@ docker compose -f ../docker-compose-annals-hs-ingestor.yml up --build
 
 Python sources in this module are licensed under **GNU AGPL v3** (author:
 **CNR-ITIAm / ESSI-Lab**; see [`../CITATION-software.cff`](../CITATION-software.cff)).
-The Annals **dataset** under `../data/` is licensed separately under **CC BY 4.0**
+The Yearbooks **dataset** under `../data/` is licensed separately under **CC BY 4.0**
 and attributed to **ISPRA BIO-ACAS** (see [`../LICENSE`](../LICENSE) and
 [`../CITATION.cff`](../CITATION.cff)).

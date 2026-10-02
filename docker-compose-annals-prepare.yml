@@ -1,4 +1,4 @@
-# Annals data preparation: extract ZIPs, sort OSSERVAZIONI CSVs, map to STA.
+# Yearbooks data preparation: extract ZIPs, sort OSSERVAZIONI CSVs, map to STA.
 #
 # Writes outputs under ./data/processed/ (CSVs) and ./data/processed/sta/ (mapped STA JSON).
 # Shared by both FROST and HydroServer ingestors; no target server required.

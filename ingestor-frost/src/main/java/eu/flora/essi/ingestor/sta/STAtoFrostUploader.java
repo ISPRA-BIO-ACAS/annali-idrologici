@@ -26,7 +26,9 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
@@ -499,7 +501,10 @@ public final class STAtoFrostUploader {
             PagedResult<Thing> existing = client.getThingsByProperty("siteId", siteId);
             if (!existing.getItems().isEmpty()) {
                 Long thingId = existing.getItems().get(0).getId();
-                if (forceUpload) {
+                if (uploadStrategy == ObservationUploadStrategy.DELETE_BEFORE_UPLOAD) {
+                    deleteBeforeReupload(thingDir, thingId);
+                    postThingWithDatastreamsAndCollectTasks(thingDir, thing, locationFile, datastreamTasks);
+                } else if (forceUpload) {
                     updateExistingThingAndCollectTasks(thingDir, thing, locationFile, thingId, datastreamTasks);
                 } else {
                     try (DirectoryStream<Path> dsDirs = Files.newDirectoryStream(thingDir, Files::isDirectory)) {
@@ -517,6 +522,9 @@ public final class STAtoFrostUploader {
                     }
                 }
             } else {
+                if (uploadStrategy == ObservationUploadStrategy.DELETE_BEFORE_UPLOAD) {
+                    deleteBeforeReupload(thingDir, null);
+                }
                 postThingWithDatastreamsAndCollectTasks(thingDir, thing, locationFile, datastreamTasks);
             }
         } catch (Exception e) {
@@ -576,8 +584,15 @@ public final class STAtoFrostUploader {
                 String datastreamIdProp = ds.getProperties() != null ? ds.getProperties().optString("datastreamId", null) : null;
                 if (datastreamIdProp == null || datastreamIdProp.isEmpty()) continue;
                 ds.removeThingReference();
-                ds.setSensor(new Sensor(new JSONObject(Files.readString(sensorFile, StandardCharsets.UTF_8))));
-                ds.setObservedProperty(new ObservedProperty(new JSONObject(Files.readString(opFile, StandardCharsets.UTF_8))));
+                Sensor sensor = new Sensor(new JSONObject(Files.readString(sensorFile, StandardCharsets.UTF_8)));
+                ObservedProperty observedProperty = new ObservedProperty(new JSONObject(Files.readString(opFile, StandardCharsets.UTF_8)));
+                if (uploadStrategy == ObservationUploadStrategy.DELETE_BEFORE_UPLOAD) {
+                    attachSensorForReplace(ds, sensor);
+                    attachObservedPropertyForReplace(ds, observedProperty);
+                } else {
+                    ds.setSensor(sensor);
+                    ds.setObservedProperty(observedProperty);
+                }
                 datastreamsForPost.add(ds);
                 datastreamDirs.add(dsDir);
             }
@@ -587,6 +602,9 @@ public final class STAtoFrostUploader {
         Location location = null;
         if (Files.isRegularFile(locationFile)) {
             location = new Location(new JSONObject(Files.readString(locationFile, StandardCharsets.UTF_8)));
+            if (uploadStrategy == ObservationUploadStrategy.DELETE_BEFORE_UPLOAD) {
+                location = locationForReplace(location);
+            }
         }
         client.postThingWithRelations(thing, location != null ? List.of(location) : null, datastreamsForPost);
 
@@ -713,5 +731,246 @@ public final class STAtoFrostUploader {
 
         // Collect lightweight task info - observations NOT loaded here (lazy loading)
         datastreamTasks.add(new DatastreamUploadTask(taskDsId, datastreamIdProp, observationsDir));
+    }
+
+    /**
+     * Remove STA entities that would block a fresh insert of this Thing.
+     * Datastream deletion also removes that datastream's observations.
+     * An ObservedProperty shared with another Thing is left in place and updated later.
+     */
+    private void deleteBeforeReupload(Path thingDir, Long serverThingId) throws Exception {
+        Set<Long> thingIds = new LinkedHashSet<>();
+        Set<Long> datastreamIds = new LinkedHashSet<>();
+        Set<Long> sensorIds = new LinkedHashSet<>();
+        Set<Long> observedPropertyIds = new LinkedHashSet<>();
+        Set<Long> locationIds = new LinkedHashSet<>();
+
+        if (serverThingId != null) {
+            thingIds.add(serverThingId);
+            collectIdsFromServer(serverThingId, datastreamIds, sensorIds, observedPropertyIds, locationIds);
+        }
+        collectIdsFromLocalFiles(thingDir, thingIds, datastreamIds, sensorIds, observedPropertyIds, locationIds);
+
+        int deletedDatastreams = 0;
+        int deletedThings = 0;
+        int deletedLocations = 0;
+        int deletedSensors = 0;
+        int deletedObservedProperties = 0;
+
+        for (Long datastreamId : datastreamIds) {
+            if (deleteDatastreamForReplace(datastreamId)) {
+                deletedDatastreams++;
+            }
+        }
+        for (Long thingId : thingIds) {
+            try {
+                client.deleteThing(thingId);
+                deletedThings++;
+            } catch (FROSTServiceUnavailableException e) {
+                throw e;
+            } catch (IOException e) {
+                if (!isNotFound(e)) {
+                    throw e;
+                }
+            }
+        }
+        for (Long locationId : locationIds) {
+            if (deleteIfPresent("Location", locationId, () -> client.deleteLocation(locationId))) {
+                deletedLocations++;
+            }
+        }
+        for (Long sensorId : sensorIds) {
+            if (deleteIfPresent("Sensor", sensorId, () -> client.deleteSensor(sensorId))) {
+                deletedSensors++;
+            }
+        }
+        for (Long observedPropertyId : observedPropertyIds) {
+            if (deleteIfPresent("ObservedProperty", observedPropertyId, () -> client.deleteObservedProperty(observedPropertyId))) {
+                deletedObservedProperties++;
+            }
+        }
+
+        if (serverThingId != null || deletedDatastreams + deletedThings + deletedLocations + deletedSensors + deletedObservedProperties > 0) {
+            System.out.println("DELETE_BEFORE_UPLOAD: replaced entities for " + thingDir.getFileName()
+                    + " (things=" + deletedThings
+                    + ", locations=" + deletedLocations
+                    + ", datastreams=" + deletedDatastreams
+                    + ", sensors=" + deletedSensors
+                    + ", observedProperties=" + deletedObservedProperties + ")");
+        }
+    }
+
+    private void collectIdsFromServer(Long thingId, Set<Long> datastreamIds, Set<Long> sensorIds,
+            Set<Long> observedPropertyIds, Set<Long> locationIds) throws IOException, InterruptedException {
+        PagedResult<Datastream> datastreams = client.get("Things(" + thingId + ")/Datastreams", null,
+                "Sensor,ObservedProperty", Datastream.class);
+        while (datastreams != null) {
+            for (Datastream datastream : datastreams.getItems()) {
+                if (datastream.getId() != null) {
+                    datastreamIds.add(datastream.getId());
+                }
+                addNavigationId(sensorIds, datastream.toJSON(), "Sensor");
+                addNavigationId(observedPropertyIds, datastream.toJSON(), "ObservedProperty");
+            }
+            if (!datastreams.hasNext()) {
+                break;
+            }
+            datastreams = client.getDatastreamsByNextLink(datastreams.getNextLink());
+        }
+
+        PagedResult<Location> locations = client.getThingLocations(thingId);
+        while (locations != null) {
+            for (Location location : locations.getItems()) {
+                if (location.getId() != null) {
+                    locationIds.add(location.getId());
+                }
+            }
+            if (!locations.hasNext()) {
+                break;
+            }
+            locations = client.getLocationsByNextLink(locations.getNextLink());
+        }
+    }
+
+    private void collectIdsFromLocalFiles(Path thingDir, Set<Long> thingIds, Set<Long> datastreamIds,
+            Set<Long> sensorIds, Set<Long> observedPropertyIds, Set<Long> locationIds) throws IOException {
+        addFileId(thingIds, thingDir.resolve(THING_JSON));
+        addFileId(locationIds, thingDir.resolve(LOCATION_JSON));
+        try (DirectoryStream<Path> dsDirs = Files.newDirectoryStream(thingDir, Files::isDirectory)) {
+            for (Path dsDir : dsDirs) {
+                addFileId(datastreamIds, dsDir.resolve(DATASTREAM_JSON));
+                addFileId(sensorIds, dsDir.resolve(SENSOR_JSON));
+                addFileId(observedPropertyIds, dsDir.resolve(OBSERVED_PROPERTY_JSON));
+            }
+        }
+    }
+
+    private static void addFileId(Set<Long> ids, Path jsonFile) throws IOException {
+        if (!Files.isRegularFile(jsonFile)) {
+            return;
+        }
+        addJsonId(ids, new JSONObject(Files.readString(jsonFile, StandardCharsets.UTF_8)));
+    }
+
+    private static void addNavigationId(Set<Long> ids, JSONObject parent, String key) {
+        JSONObject navigation = parent.optJSONObject(key);
+        if (navigation != null) {
+            addJsonId(ids, navigation);
+        }
+    }
+
+    private static void addJsonId(Set<Long> ids, JSONObject json) {
+        if (json != null && json.has("@iot.id")) {
+            ids.add(json.getLong("@iot.id"));
+        }
+    }
+
+    private static Long jsonId(JSONObject json) {
+        return json != null && json.has("@iot.id") ? json.getLong("@iot.id") : null;
+    }
+
+    /**
+     * Delete a datastream. If observations block the delete, remove them and retry.
+     * @return true when a datastream was deleted
+     */
+    private boolean deleteDatastreamForReplace(Long datastreamId) throws Exception {
+        try {
+            client.deleteDatastream(datastreamId);
+            return true;
+        } catch (FROSTServiceUnavailableException e) {
+            throw e;
+        } catch (IOException e) {
+            if (isNotFound(e)) {
+                return false;
+            }
+            client.deleteObservationsByDatastream(datastreamId);
+            try {
+                client.deleteDatastream(datastreamId);
+                return true;
+            } catch (IOException retry) {
+                if (isNotFound(retry)) {
+                    return false;
+                }
+                throw retry;
+            }
+        }
+    }
+
+    @FunctionalInterface
+    private interface FrostCall {
+        void run() throws Exception;
+    }
+
+    /** @return true when the entity was deleted */
+    private boolean deleteIfPresent(String label, Long id, FrostCall call) throws Exception {
+        try {
+            call.run();
+            return true;
+        } catch (FROSTServiceUnavailableException e) {
+            throw e;
+        } catch (IOException e) {
+            if (isNotFound(e)) {
+                return false;
+            }
+            System.out.println("  Kept " + label + " " + id + " for in-place update (" + e.getMessage() + ")");
+            return false;
+        }
+    }
+
+    private void attachSensorForReplace(Datastream datastream, Sensor sensor) throws IOException, InterruptedException {
+        Long id = jsonId(sensor.toJSON());
+        if (id != null && entityExists(() -> client.getSensor(id))) {
+            client.patchSensor(id, sensor);
+            datastream.setSensorId(id);
+        } else {
+            datastream.setSensor(sensor);
+        }
+    }
+
+    private void attachObservedPropertyForReplace(Datastream datastream, ObservedProperty observedProperty)
+            throws IOException, InterruptedException {
+        Long id = jsonId(observedProperty.toJSON());
+        if (id != null && entityExists(() -> client.getObservedProperty(id))) {
+            client.patchObservedProperty(id, observedProperty);
+            datastream.setObservedPropertyId(id);
+        } else {
+            datastream.setObservedProperty(observedProperty);
+        }
+    }
+
+    /**
+     * Link a Location that is still on the server after updating it. Shared observed properties use the same pattern.
+     */
+    private Location locationForReplace(Location location) throws IOException, InterruptedException {
+        Long id = jsonId(location.toJSON());
+        if (id != null && entityExists(() -> client.getLocation(id))) {
+            client.patchLocation(id, location);
+            return new Location(new JSONObject().put("@iot.id", id));
+        }
+        return location;
+    }
+
+    @FunctionalInterface
+    private interface ExistenceCheck {
+        void run() throws IOException, InterruptedException;
+    }
+
+    private boolean entityExists(ExistenceCheck check) throws IOException, InterruptedException {
+        try {
+            check.run();
+            return true;
+        } catch (FROSTServiceUnavailableException e) {
+            throw e;
+        } catch (IOException e) {
+            if (isNotFound(e)) {
+                return false;
+            }
+            throw e;
+        }
+    }
+
+    private static boolean isNotFound(IOException e) {
+        String message = e.getMessage();
+        return message != null && message.contains("status 404");
     }
 }
